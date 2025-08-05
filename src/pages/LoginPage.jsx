@@ -1,6 +1,7 @@
 // src/pages/LoginPage.jsx
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { supabase } from '../supabaseClient'
 
 function LoginPage({ onLogin }) {
   const [name, setName] = useState('')
@@ -8,7 +9,7 @@ function LoginPage({ onLogin }) {
   const [error, setError] = useState('')
   const navigate = useNavigate()
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault()
 
     if (!name || !password) {
@@ -16,19 +17,33 @@ function LoginPage({ onLogin }) {
       return
     }
 
-    // 예시 로그인 로직
-    if (name === 'admin' && password === '1234') {
-      const userData = { name: 'admin', department: '관리팀' }
-      onLogin(userData)                      // 상태 설정
-      navigate('/main')                     // ✅ 메인 페이지로 이동
-    } else {
+    const { data, error } = await supabase
+     .from('users')
+     .select('*')
+      .filter('name', 'eq', name)
+      .filter('password', 'eq', password)
+      .maybeSingle()
+
+    if (error || !data) {
       setError('로그인 정보가 올바르지 않습니다.')
+      return
     }
+
+    // 로그인 성공
+    onLogin({
+      id: data.id,
+      name: data.name,
+      department: data.department,
+    })
+    navigate('/main')
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 via-white to-pink-100 p-4">
-      <form onSubmit={handleLogin} className="bg-white/30 backdrop-blur-md border border-white/20 p-10 rounded-2xl shadow-xl max-w-md w-full">
+      <form
+        onSubmit={handleLogin}
+        className="bg-white/30 backdrop-blur-md border border-white/20 p-10 rounded-2xl shadow-xl max-w-md w-full"
+      >
         <h1 className="text-2xl font-bold text-center mb-6 text-gray-800">🔐 사내 커뮤니티 로그인</h1>
 
         {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
