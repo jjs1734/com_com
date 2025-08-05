@@ -1,28 +1,16 @@
-// App.jsx
-import { useEffect, useState } from 'react'
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom'
+// src/App.jsx
+import { useState } from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import LoginPage from './pages/LoginPage'
-import NoticePage from './pages/NoticePage'
+import MainPage from './pages/MainPage'
 import NoticeWritePage from './pages/NoticeWritePage'
 
 function App() {
-  const [user, setUser] = useState(() => {
-    const storedUser = localStorage.getItem('user')
-    return storedUser ? JSON.parse(storedUser) : null
-  })
-
-  useEffect(() => {
-    if (user) {
-      localStorage.setItem('user', JSON.stringify(user))
-    } else {
-      localStorage.removeItem('user')
-    }
-  }, [user])
-
+  const [user, setUser] = useState(null)
   const [notices, setNotices] = useState([])
 
-  const handleLogin = (loginUser) => {
-    setUser(loginUser)
+  const handleLogin = (userData) => {
+    setUser(userData)
   }
 
   const handleLogout = () => {
@@ -30,7 +18,7 @@ function App() {
   }
 
   const handleAddNotice = (newNotice) => {
-    setNotices([newNotice, ...notices])
+    setNotices((prev) => [...prev, newNotice])
   }
 
   return (
@@ -38,13 +26,20 @@ function App() {
       <Routes>
         <Route path="/" element={<LoginPage onLogin={handleLogin} />} />
         <Route
-          path="/notice"
-          element={<NoticePage user={user} notices={notices} onLogout={handleLogout} />}
+          path="/main"
+          element={<MainPage user={user} notices={notices} onLogout={handleLogout} />}
         />
         <Route
           path="/notice/write"
-          element={<NoticeWritePage user={user} onSubmitNotice={handleAddNotice} />}
+          element={
+            user ? (
+              <NoticeWritePage user={user} onSubmitNotice={handleAddNotice} />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
         />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   )

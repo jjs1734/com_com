@@ -1,3 +1,4 @@
+// src/pages/LoginPage.jsx
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
@@ -15,14 +16,11 @@ function LoginPage({ onLogin }) {
       return
     }
 
-    // 로그인 검증
+    // 예시 로그인 로직
     if (name === 'admin' && password === '1234') {
-      const userInfo = {
-        name,
-        department: '관리부', // 필요에 따라 동적으로 입력도 가능
-      }
-      onLogin(userInfo) // ✅ App.jsx의 setUser로 전달
-      navigate('/notice')
+      const userData = { name: 'admin', department: '관리팀' }
+      onLogin(userData)                      // 상태 설정
+      navigate('/main')                     // ✅ 메인 페이지로 이동
     } else {
       setError('로그인 정보가 올바르지 않습니다.')
     }
@@ -31,7 +29,7 @@ function LoginPage({ onLogin }) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 via-white to-pink-100 p-4">
       <form onSubmit={handleLogin} className="bg-white/30 backdrop-blur-md border border-white/20 p-10 rounded-2xl shadow-xl max-w-md w-full">
-        <h1 className="text-2xl font-bold text-center mb-6 text-gray-800">🔐 3nnoN 로그인</h1>
+        <h1 className="text-2xl font-bold text-center mb-6 text-gray-800">🔐 사내 커뮤니티 로그인</h1>
 
         {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
 
