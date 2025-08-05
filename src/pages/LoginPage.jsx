@@ -31,7 +31,7 @@ function LoginPage({ onLogin }) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 via-white to-pink-100 p-4">
       <form onSubmit={handleLogin} className="bg-white/30 backdrop-blur-md border border-white/20 p-10 rounded-2xl shadow-xl max-w-md w-full">
-        <h1 className="text-2xl font-bold text-center mb-6 text-gray-800">🔐 사내 커뮤니티 로그인</h1>
+        <h1 className="text-2xl font-bold text-center mb-6 text-gray-800">🔐 3nnoN 로그인</h1>
 
         {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
 
