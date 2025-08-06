@@ -1,101 +1,91 @@
 // src/pages/MainPage.jsx
-import React, { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-function MainPage({ user, notices, onLogout }) {
-  const [viewedNotices, setViewedNotices] = useState(notices)
+function MainPage({ user, events, notices = [], onLogout }) {
   const navigate = useNavigate()
+  const [visibleEvents, setVisibleEvents] = useState([])
 
-  const handleView = (id) => {
-    setViewedNotices((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, views: n.views + 1 } : n))
-    )
-  }
+  useEffect(() => {
+    if (!Array.isArray(events)) return
 
-  const handleLogout = () => {
+    const now = new Date()
+    const upcoming = events
+      .filter((event) => new Date(event.end_date) >= now)
+      .sort((a, b) => new Date(a.start_date) - new Date(b.start_date))
+
+    setVisibleEvents(upcoming)
+  }, [events])
+
+  const handleLogoutClick = () => {
     onLogout()
     navigate('/')
   }
 
-  const handleLoginRedirect = () => {
-    navigate('/')
-  }
-
-  const goToWritePage = () => {
-    navigate('/notice/write')
-  }
-
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* 상단 헤더 */}
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold">🌐 사내 커뮤니티 메인</h1>
-            {user && (
-              <p className="text-sm text-gray-600 mt-1">👋 {user.name}님 환영합니다!</p>
-            )}
+    <div className="min-h-screen bg-[#f9f9f9] p-8 font-sans">
+      <div className="grid grid-cols-4 gap-6">
+        {/* 좌측: 행사 목록 */}
+        <div className="col-span-3 space-y-6">
+          <div className="p-4 border border-gray-200 rounded-lg bg-white">
+            <h2 className="text-2xl font-semibold mb-4 border-b pb-2">📅 예정된 행사</h2>
+            <div className="grid grid-cols-1 gap-3 max-h-[40vh] overflow-y-auto pr-2">
+              {visibleEvents.length === 0 ? (
+                <p className="text-gray-500">표시할 행사가 없습니다.</p>
+              ) : (
+                visibleEvents.map((event) => (
+                  <div
+                    key={event.id}
+                    className="p-3 border border-gray-100 rounded-md bg-[#fafafa] hover:bg-[#f0f0f0] transition text-sm"
+                  >
+                    <p className="text-base font-medium text-black">{event.event_name}</p>
+                    <p className="text-gray-700">🗓️ {event.start_date} ~ {event.end_date}</p>
+                    <p className="text-gray-700">🏢 {event.company_name} / {event.product_name}</p>
+                    <p className="text-gray-700">📍 {event.region} - {event.venue}</p>
+                    <p className="text-gray-700">👤 진행자: {event.host}</p>
+                    <p className="text-gray-700">💼 부서: {event.department}</p>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
-          <div className="flex gap-2">
-            {user ? (
-              <>
-                <button
-                  onClick={goToWritePage}
-                  className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
-                >
-                  ✍️ 공지 작성
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500 transition"
-                >
-                  로그아웃
-                </button>
-              </>
-            ) : (
+
+          {/* 공지사항 */}
+          <div className="p-4 border border-gray-200 rounded-lg bg-white">
+            <div className="flex justify-between items-center mb-4 border-b pb-2">
+              <h2 className="text-2xl font-semibold">📢 공지사항</h2>
               <button
-                onClick={handleLoginRedirect}
-                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
+                onClick={() => navigate('/notice/write')}
+                className="text-sm bg-black text-white px-4 py-1.5 rounded hover:bg-gray-800"
               >
-                로그인
+                공지 작성
               </button>
+            </div>
+            {notices.length === 0 ? (
+              <p className="text-gray-500">등록된 공지사항이 없습니다.</p>
+            ) : (
+              <ul className="space-y-2">
+                {notices.map((notice, idx) => (
+                  <li key={idx} className="text-sm text-gray-800 border-b pb-1">
+                    📌 {notice.title}
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
         </div>
 
-        {/* 공지사항 섹션 */}
-        <section className="mb-10">
-          <h2 className="text-xl font-semibold mb-4">📢 공지사항</h2>
-          <div className="space-y-4">
-            {viewedNotices.length === 0 ? (
-              <p className="text-center text-gray-500">등록된 공지가 없습니다.</p>
-            ) : (
-              viewedNotices.map((notice) => (
-                <div
-                  key={notice.id}
-                  onClick={() => handleView(notice.id)}
-                  className="bg-white p-4 rounded-xl shadow cursor-pointer hover:shadow-lg transition"
-                >
-                  <h2 className="text-lg font-semibold mb-1">{notice.title}</h2>
-                  <p className="text-sm text-gray-600">{notice.content}</p>
-                  {notice.file && (
-                    <p className="text-xs text-blue-500 mt-2">📎 {notice.file.name}</p>
-                  )}
-                  <div className="text-xs text-gray-500 mt-2 flex justify-between">
-                    <span>작성자: {notice.author}</span>
-                    <span>조회수: {notice.views}</span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
-
-        {/* 접속 중인 사용자 & 메신저 준비 영역 */}
-        <section>
-          <h2 className="text-xl font-semibold mb-4">💬 접속자 & 메신저</h2>
-          <p className="text-gray-500 text-sm">* 이 영역은 다음 단계에서 실시간 접속자/채팅 기능으로 확장 예정입니다.</p>
-        </section>
+        {/* 우측: 유저 정보 */}
+        <div className="col-span-1 p-4 border border-gray-200 rounded-lg bg-white h-fit">
+          <h2 className="text-lg font-medium text-gray-900 mb-2">🙋‍♂️ 로그인 정보</h2>
+          <p className="text-sm text-gray-700 mb-4">사용자: <strong>{user?.name}</strong></p>
+          <button
+            onClick={handleLogoutClick}
+            className="w-full bg-black text-white py-2 rounded hover:bg-gray-800"
+          >
+            로그아웃
+          </button>
+        </div>
       </div>
     </div>
   )
