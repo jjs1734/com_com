@@ -1,10 +1,11 @@
 // src/components/EventCalendar.jsx
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek,
   addDays, eachDayOfInterval, isSameMonth, isWithinInterval,
   format, parseISO, startOfDay, endOfDay, isAfter
 } from 'date-fns'
+import EventDetailModal from './EventDetailModal'
 
 /**
  * Props:
@@ -25,6 +26,8 @@ export default function EventCalendar({
   holidays = new Set(),
   getDeptColor,
 }) {
+  const [selectedEvent, setSelectedEvent] = useState(null)
+
   const current = startOfDay(currentDate || new Date())
 
   // 표시에 필요한 날짜들 계산
@@ -72,7 +75,7 @@ export default function EventCalendar({
     return 'upcoming' // 예정
   }
 
-  // 부서별 색상 범례: 화면에 존재하는 부서 목록(중복 제거) → 한글 오름차순
+  // 부서 범례: 오름차순
   const deptListSorted = useMemo(() => {
     const set = new Set(events.map(e => e.department).filter(Boolean))
     return Array.from(set).sort((a, b) => String(a).localeCompare(String(b), 'ko'))
@@ -122,13 +125,14 @@ export default function EventCalendar({
                     ? getDeptColor(evt.department, st === 'past', st === 'ongoing')
                     : 'bg-neutral-900 text-white'
                   return (
-                    <div
+                    <button
                       key={`${evt.id}-${key}`}
-                      className={`text-[11px] px-1.5 py-0.5 rounded truncate ${cls}`}
+                      onClick={() => setSelectedEvent(evt)}
+                      className={`w-full text-left text-[11px] px-1.5 py-0.5 rounded truncate ${cls} hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-black/20`}
                       title={`${evt.event_name} (${evt.start_date}~${evt.end_date})`}
                     >
                       {evt.event_name}
-                    </div>
+                    </button>
                   )
                 })}
                 {dayEvents.length > 3 && (
@@ -159,6 +163,15 @@ export default function EventCalendar({
           </div>
         </div>
       )}
+
+      {/* 상세 모달 */}
+      <EventDetailModal
+        open={!!selectedEvent}
+        event={selectedEvent}
+        onClose={() => setSelectedEvent(null)}
+        getDeptColor={getDeptColor}
+        status={status}
+      />
     </div>
   )
 }
