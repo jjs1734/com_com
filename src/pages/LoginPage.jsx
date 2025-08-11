@@ -34,6 +34,7 @@ function LoginPage({ onLogin }) {
       id: data.id,
       name: data.name,
       department: data.department,
+      position: data.position,
     })
     navigate('/main')
   }
