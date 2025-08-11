@@ -78,7 +78,8 @@ function MainPage({ user, events, notices = [], onLogout }) {
         {/* 우측: 유저 정보 */}
         <div className="col-span-1 p-4 border border-gray-200 rounded-lg bg-white h-fit">
           <h2 className="text-lg font-medium text-gray-900 mb-2">🙋‍♂️ 로그인 정보</h2>
-          <p className="text-sm text-gray-700 mb-4">사용자: <strong>{user?.name}</strong></p>
+          <p className="text-sm text-gray-700">사용자: <strong>{user?.name}</strong></p>
+          <p className="text-sm text-gray-700 mb-4">부서: <strong>{user?.department || '미지정'}</strong></p>
           <button
             onClick={handleLogoutClick}
             className="w-full bg-black text-white py-2 rounded hover:bg-gray-800"
