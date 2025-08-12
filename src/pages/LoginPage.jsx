@@ -13,7 +13,6 @@ function LoginPage({ onLogin }) {
   const handleLogin = async (e) => {
     e.preventDefault()
     setError('')
-
     if (!username || !password) {
       setError('아이디와 비밀번호를 모두 입력해주세요.')
       return
@@ -21,7 +20,7 @@ function LoginPage({ onLogin }) {
 
     setLoading(true)
     try {
-      // ✅ DB에서 bcrypt 검증하는 RPC 호출 (login_user)
+      // 🔐 Supabase RPC 로그인 검증
       const { data, error } = await supabase.rpc('login_user', {
         p_username: username,
         p_password: password,
@@ -38,14 +37,13 @@ function LoginPage({ onLogin }) {
         return
       }
 
-      // 로그인 성공: RPC에서 반환한 최소 정보만 사용
       const user = data[0]
       onLogin({
         id: user.id,
         username: user.username,
         name: user.name,
         department: user.department,
-        position: user.position, // 백엔드 함수에서 "position" 컬럼 반환 중
+        position: user.position,
       })
 
       navigate('/main')
