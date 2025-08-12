@@ -3,12 +3,10 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import LoginPage from './pages/LoginPage'
 import MainPage from './pages/MainPage'
-import NoticeWritePage from './pages/NoticeWritePage'
 import { supabase } from './supabaseClient'
 
 function App() {
   const [user, setUser] = useState(null)
-  const [notices, setNotices] = useState([])
   const [events, setEvents] = useState([])
 
   const handleLogin = (userData) => {
@@ -19,14 +17,31 @@ function App() {
     setUser(null)
   }
 
-  const handleAddNotice = (newNotice) => {
-    setNotices((prev) => [...prev, newNotice])
-  }
-
   // ✅ Supabase에서 행사 정보 불러오기
   useEffect(() => {
     const fetchEvents = async () => {
-      const { data, error } = await supabase.from('events').select('*')
+      const { data, error } = await supabase
+        .from('events')
+        .select(`
+          id,
+          event_name,
+          start_date,
+          end_date,
+          company_name,
+          product_name,
+          region,
+          venue,
+          department,
+          host:users!events_host_id_fkey (
+            id,
+            name,
+            position,
+            department
+          )
+        `)
+        .order('start_date', { ascending: true })
+        .order('end_date', { ascending: true })
+
       if (error) {
         console.error('❌ 행사 정보 가져오기 실패:', error.message)
       } else {
@@ -48,19 +63,8 @@ function App() {
             <MainPage
               user={user}
               events={events}
-              notices={notices}
               onLogout={handleLogout}
             />
-          }
-        />
-        <Route
-          path="/notice/write"
-          element={
-            user ? (
-              <NoticeWritePage user={user} onSubmitNotice={handleAddNotice} />
-            ) : (
-              <Navigate to="/" replace />
-            )
           }
         />
         <Route path="*" element={<Navigate to="/" replace />} />

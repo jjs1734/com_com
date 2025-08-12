@@ -14,14 +14,24 @@ export default function EventDetailModal({ open, event, onClose, getDeptColor, s
 
   if (!open || !event) return null
 
-  const tone = status(event) // 'upcoming' | 'ongoing' | 'past'
+  // status가 함수가 아닐 가능성도 대비
+  const tone = typeof status === 'function' ? status(event) : 'upcoming' // 'upcoming' | 'ongoing' | 'past'
   const colorClass =
     getDeptColor?.(event.department, tone === 'past', tone === 'ongoing') ??
     'bg-neutral-900 text-white'
 
   const fmt = (d) => {
-    try { return format(parseISO(String(d)), 'yyyy.MM.dd') } catch { return d }
+    try { return format(parseISO(String(d)), 'yyyy.MM.dd') } catch { return String(d ?? '-') }
   }
+
+  // ✅ host는 객체일 수 있으므로 안전하게 분해
+  const hostName = event.host?.name ?? '-'
+  const hostPos  = event.host?.position ?? ''
+  const hostDept = event.host?.department ?? ''
+
+  // 담당자 표기 조합 (예: 홍길동 (대리, 학회1팀))
+  const hostLine = hostName === '-' ? '-' :
+    `${hostName}${hostPos ? ` (${hostPos}${hostDept ? `, ${hostDept}` : ''})` : hostDept ? ` (${hostDept})` : ''}`
 
   return (
     <div
@@ -74,7 +84,9 @@ export default function EventDetailModal({ open, event, onClose, getDeptColor, s
               <Value>{event.department || '-'}</Value>
 
               <Label>담당자</Label>
-              <Value>{event.host || '-'}</Value>
+              {/* ⬇️ 기존: {event.host} (객체라서 오류)
+                  변경: 안전한 문자열 hostLine */}
+              <Value>{hostLine}</Value>
 
               <Label>클라이언트</Label>
               <Value>{event.company_name || '-'}</Value>
@@ -95,7 +107,6 @@ export default function EventDetailModal({ open, event, onClose, getDeptColor, s
             >
               닫기
             </button>
-            {/* 필요 시 상세 페이지 이동/복제 등 추가 버튼 가능 */}
           </div>
         </div>
       </div>
