@@ -12,10 +12,8 @@ export default function App() {
   const [user, setUser] = useState(null)
   const [events, setEvents] = useState([])
 
-  // ✅ 로그인 사용자만 접속 허용
   const isLoggedIn = !!user
 
-  // ✅ 로그인 유지된 경우 Supabase 세션 검사 (초기 로딩 시)
   useEffect(() => {
     const fetchEvents = async () => {
       const { data, error } = await supabase
@@ -35,25 +33,18 @@ export default function App() {
     }
   }, [isLoggedIn])
 
-  const handleLogout = () => {
-    setUser(null)
-  }
+  const handleLogout = () => setUser(null)
 
   return (
     <Router>
       <Routes>
-        <Route
-          path="/"
-          element={
-            isLoggedIn ? <Navigate to="/main" replace /> : <LoginPage onLogin={setUser} />
-          }
-        />
+        <Route path="/" element={isLoggedIn ? <Navigate to="/main" replace /> : <LoginPage onLogin={setUser} />} />
         <Route
           path="/main"
           element={
             isLoggedIn ? (
               <Layout user={user} onLogout={handleLogout}>
-                <MainPage user={user} events={events} onLogout={handleLogout} />
+                <MainPage user={user} events={events} />
               </Layout>
             ) : (
               <Navigate to="/" replace />
@@ -72,7 +63,6 @@ export default function App() {
             )
           }
         />
-        {/* ❌ 존재하지 않는 경로는 메인으로 리디렉션 */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>

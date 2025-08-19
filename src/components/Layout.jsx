@@ -11,47 +11,50 @@ export default function Layout({ user, onLogout, children }) {
 
   return (
     <div className="min-h-screen bg-[#f9f9f9] p-6 font-sans">
-      {/* 상단 바 */}
-      <header className="flex justify-between items-center mb-6">
-        {/* 메뉴 */}
-        <nav className="flex gap-4">
-          {navItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`text-sm px-4 py-2 rounded ${
-                location.pathname === item.path
-                  ? 'bg-black text-white'
-                  : 'bg-white text-gray-800 hover:bg-gray-100 border border-gray-300'
-              }`}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+      <div className="grid grid-cols-4 gap-6">
+        {/* 좌측 3칸 (콘텐츠 영역) */}
+        <div className="col-span-3">
+          {/* 상단 메뉴 */}
+          <header className="flex gap-4 mb-6">
+            {navItems.map((item) => (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`text-sm px-4 py-2 rounded ${
+                  location.pathname === item.path
+                    ? 'bg-black text-white'
+                    : 'bg-white text-gray-800 hover:bg-gray-100 border border-gray-300'
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </header>
 
-        {/* 로그인 정보 */}
-        <div className="p-4 border border-gray-200 rounded-lg bg-white">
-          <p className="text-sm text-gray-800">
+          {/* 페이지별 콘텐츠 */}
+          <main>{children}</main>
+        </div>
+
+        {/* 우측 로그인 정보 */}
+        <div className="col-span-1 p-4 border border-gray-200 rounded-lg bg-white h-fit">
+          <h2 className="text-lg font-medium text-gray-900 mb-2">🙋‍♂️ 로그인 정보</h2>
+          <p className="text-sm text-gray-700">
             사용자: <strong>{user?.name}</strong>
           </p>
-          <p className="text-sm text-gray-800">
-            직급: <strong>{user?.position || '미지정'}</strong>
+          <p className="text-sm text-gray-700">
+            직급: <strong>{user?.position || "미지정"}</strong>
           </p>
-          <p className="text-sm text-gray-800">
-            부서: <strong>{user?.department || '미지정'}</strong>
+          <p className="text-sm text-gray-700 mb-4">
+            부서: <strong>{user?.department || "미지정"}</strong>
           </p>
           <button
             onClick={onLogout}
-            className="mt-2 w-full text-sm bg-black text-white py-1.5 rounded hover:bg-gray-800"
+            className="w-full bg-black text-white py-2 rounded hover:bg-gray-800"
           >
             로그아웃
           </button>
         </div>
-      </header>
-
-      {/* 콘텐츠 */}
-      <main>{children}</main>
+      </div>
     </div>
   )
 }

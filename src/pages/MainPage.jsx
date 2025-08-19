@@ -1,4 +1,3 @@
-// src/pages/MainPage.jsx
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import EventCalendar from "../components/EventCalendar";
@@ -49,16 +48,13 @@ const sortOptions = (arr) =>
 function MainPage({ user, events = [], onLogout }) {
   const navigate = useNavigate();
 
-  // 1) 이벤트를 먼저 "문자열로 정규화" (host 객체도 name만 별도 보관)
   const normalizedEvents = useMemo(() => {
     return (events || []).map((e) => ({
       ...e,
-      // 꼭 문자열로!
       department: s(e.department),
       company_name: s(e.company_name),
       product_name: s(e.product_name),
-      // host는 객체로 두되, 렌더/필터용 문자열을 따로
-      host: e.host || null,               // 모달 등에서 사용할 수 있음
+      host: e.host || null,
       host_name: s(e.host?.name, "미지정"),
     }));
   }, [events]);
@@ -70,7 +66,6 @@ function MainPage({ user, events = [], onLogout }) {
   const [hostFilter, setHostFilter] = useState("전체");
   const [clientFilter, setClientFilter] = useState("전체");
 
-  // 한국 공휴일(예시)
   const holidaysKR = useMemo(
     () =>
       new Set([
@@ -80,7 +75,6 @@ function MainPage({ user, events = [], onLogout }) {
     []
   );
 
-  // 2) 드롭다운 옵션(반드시 문자열 배열)
   const optionsDept = useMemo(() => {
     let pool = normalizedEvents;
     if (hostFilter !== "전체") pool = pool.filter((e) => e.host_name === hostFilter);
@@ -102,7 +96,6 @@ function MainPage({ user, events = [], onLogout }) {
     return sortOptions(pool.map((e) => e.company_name));
   }, [normalizedEvents, deptFilter, hostFilter]);
 
-  // 3) 필터 유효성 보정
   useEffect(() => {
     if (hostFilter !== "전체" && !optionsHost.includes(hostFilter)) setHostFilter("전체");
     if (clientFilter !== "전체" && !optionsClient.includes(clientFilter)) setClientFilter("전체");
@@ -118,7 +111,6 @@ function MainPage({ user, events = [], onLogout }) {
     if (hostFilter !== "전체" && !optionsHost.includes(hostFilter)) setHostFilter("전체");
   }, [clientFilter, optionsDept, optionsHost]);
 
-  // 4) 필터 적용
   const filteredEvents = useMemo(() => {
     return normalizedEvents.filter(
       (e) =>
@@ -134,7 +126,6 @@ function MainPage({ user, events = [], onLogout }) {
     setClientFilter("전체");
   };
 
-  // 네비게이션
   const handlePrev = () => {
     setCurrentDate((d) => (view === "week" ? addDays(d, -7) : subMonths(d, 1)));
   };
@@ -143,15 +134,10 @@ function MainPage({ user, events = [], onLogout }) {
     setCurrentDate((d) => (view === "week" ? addDays(d, 7) : addMonths(d, 1)));
   };
 
-  const handleLogoutClick = () => {
-    onLogout();
-    navigate("/");
-  };
-
   return (
     <div className="min-h-screen bg-[#f9f9f9] p-8 font-sans">
-      <div className="grid grid-cols-4 gap-6">
-        {/* 좌측 3칸 */}
+      <div className="grid grid-cols-3 gap-6">
+        {/* 좌측 전체 */}
         <div className="col-span-3 space-y-6">
           {/* 보기/필터 */}
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -227,26 +213,6 @@ function MainPage({ user, events = [], onLogout }) {
             holidays={holidaysKR}
             getDeptColor={getDeptColor}
           />
-        </div>
-
-        {/* 우측 로그인 정보 */}
-        <div className="col-span-1 p-4 border border-gray-200 rounded-lg bg-white h-fit">
-          <h2 className="text-lg font-medium text-gray-900 mb-2">🙋‍♂️ 로그인 정보</h2>
-          <p className="text-sm text-gray-700">
-            사용자: <strong>{user?.name}</strong>
-          </p>
-          <p className="text-sm text-gray-700">
-            직급: <strong>{user?.position || "미지정"}</strong>
-          </p>
-          <p className="text-sm text-gray-700 mb-4">
-            부서: <strong>{user?.department || "미지정"}</strong>
-          </p>
-          <button
-            onClick={handleLogoutClick}
-            className="w-full bg-black text-white py-2 rounded hover:bg-gray-800"
-          >
-            로그아웃
-          </button>
         </div>
       </div>
     </div>

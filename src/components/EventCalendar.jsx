@@ -6,16 +6,8 @@ import {
   format, parseISO, startOfDay, endOfDay, isAfter
 } from 'date-fns'
 import EventDetailModal from './EventDetailModal'
+import AllEventsModal from './AllEventsModal'
 
-/**
- * Props:
- *  - events: Array<{ id, event_name, start_date, end_date, department, company_name, product_name, region, venue, host }>
- *  - view: 'month' | 'week'
- *  - currentDate: Date
- *  - onPrev(): void, onToday(): void, onNext(): void
- *  - holidays?: Set<string> // 'yyyy-MM-dd'
- *  - getDeptColor(department: string, isPast: boolean, isOngoing: boolean): string
- */
 export default function EventCalendar({
   events = [],
   view = 'month',
@@ -27,10 +19,11 @@ export default function EventCalendar({
   getDeptColor,
 }) {
   const [selectedEvent, setSelectedEvent] = useState(null)
+  const [modalDate, setModalDate] = useState(null)
 
   const current = startOfDay(currentDate || new Date())
+  const today = startOfDay(new Date())
 
-  // 표시에 필요한 날짜들 계산
   const days = useMemo(() => {
     if (view === 'week') {
       const start = startOfWeek(current, { weekStartsOn: 0 })
@@ -41,9 +34,6 @@ export default function EventCalendar({
     return eachDayOfInterval({ start, end })
   }, [current, view])
 
-  const today = startOfDay(new Date())
-
-  // 날짜별 이벤트 맵
   const eventsByDate = useMemo(() => {
     const map = {}
     events.forEach(e => {
@@ -61,7 +51,7 @@ export default function EventCalendar({
   const dayNumberClass = (d) => {
     const key = format(d, 'yyyy-MM-dd')
     const isHoliday = holidays.has(key)
-    const dow = d.getDay() // 0:일, 6:토
+    const dow = d.getDay()
     if (isHoliday || dow === 0) return 'text-red-500'
     if (dow === 6) return 'text-blue-500'
     return 'text-gray-900'
@@ -70,16 +60,20 @@ export default function EventCalendar({
   const status = (evt) => {
     const s = startOfDay(parseISO(String(evt.start_date)))
     const en = endOfDay(parseISO(String(evt.end_date)))
-    if (isAfter(today, en)) return 'past' // 종료
-    if (isWithinInterval(today, { start: s, end: en })) return 'ongoing' // 진행중
-    return 'upcoming' // 예정
+    if (isAfter(today, en)) return 'past'
+    if (isWithinInterval(today, { start: s, end: en })) return 'ongoing'
+    return 'upcoming'
   }
 
-  // 부서 범례: 오름차순
   const deptListSorted = useMemo(() => {
     const set = new Set(events.map(e => e.department).filter(Boolean))
     return Array.from(set).sort((a, b) => String(a).localeCompare(String(b), 'ko'))
   }, [events])
+
+  const openAllEvents = (dateKey) => setModalDate(dateKey)
+  const closeAllEvents = () => setModalDate(null)
+
+  const selectedDateEvents = modalDate ? eventsByDate[modalDate] || [] : []
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg">
@@ -109,6 +103,9 @@ export default function EventCalendar({
           const inMonth = isSameMonth(day, current)
           const dayEvents = eventsByDate[key] || []
 
+          const visibleEvents = dayEvents.slice(0, 3)
+          const hiddenEvents = dayEvents.slice(3)
+
           return (
             <div key={key} className={`bg-white p-2 ${view === 'week' ? 'h-48' : 'h-32'} overflow-hidden`}>
               <div className={`text-xs mb-1 flex items-center justify-between ${inMonth ? dayNumberClass(day) : 'text-gray-300'}`}>
@@ -119,7 +116,7 @@ export default function EventCalendar({
               </div>
 
               <div className="space-y-1">
-                {dayEvents.slice(0, 3).map(evt => {
+                {visibleEvents.map(evt => {
                   const st = status(evt)
                   const cls = getDeptColor
                     ? getDeptColor(evt.department, st === 'past', st === 'ongoing')
@@ -135,8 +132,13 @@ export default function EventCalendar({
                     </button>
                   )
                 })}
-                {dayEvents.length > 3 && (
-                  <div className="text-[11px] text-gray-500">+{dayEvents.length - 3} 더보기</div>
+                {hiddenEvents.length > 0 && (
+                  <button
+                    onClick={() => openAllEvents(key)}
+                    className="text-[11px] text-gray-500 hover:underline focus:outline-none"
+                  >
+                    +{hiddenEvents.length} 더보기
+                  </button>
                 )}
               </div>
             </div>
@@ -144,7 +146,7 @@ export default function EventCalendar({
         })}
       </div>
 
-      {/* 부서별 색상 범례 (오름차순, 예정 톤으로 표시) */}
+      {/* 부서별 색상 범례 */}
       {deptListSorted.length > 0 && (
         <div className="px-4 py-3">
           <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -169,6 +171,16 @@ export default function EventCalendar({
         open={!!selectedEvent}
         event={selectedEvent}
         onClose={() => setSelectedEvent(null)}
+        getDeptColor={getDeptColor}
+        status={status}
+      />
+
+      {/* 더보기 모달 */}
+      <AllEventsModal
+        open={!!modalDate}
+        events={selectedDateEvents}
+        onClose={closeAllEvents}
+        onSelectEvent={setSelectedEvent}
         getDeptColor={getDeptColor}
         status={status}
       />
