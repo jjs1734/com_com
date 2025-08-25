@@ -1,3 +1,4 @@
+// EventDetailModal.jsx
 import { useEffect, useRef } from 'react'
 import { format, parseISO } from 'date-fns'
 
@@ -22,12 +23,18 @@ export default function EventDetailModal({ open, event, onClose, getDeptColor, s
     try { return format(parseISO(String(d)), 'yyyy.MM.dd') } catch { return String(d ?? '-') }
   }
 
-  const hostName = event.host?.name ?? '-'
+  // ✅ 담당자 이름을 다양한 형태에서 안전하게 추출
+  const hostLabel =
+    event.host_name ??
+    (typeof event.host === 'string' ? event.host : event.host?.name) ??
+    '미지정'
+
+  // (선택) 직급/부서가 객체에 들어오는 형태도 대비
   const hostPos = event.host?.position ?? ''
   const hostDept = event.host?.department ?? ''
-
-  const hostLine = hostName === '-' ? '-' :
-    `${hostName}${hostPos ? ` (${hostPos}${hostDept ? `, ${hostDept}` : ''})` : hostDept ? ` (${hostDept})` : ''}`
+  const hostLine = hostLabel === '미지정'
+    ? '미지정'
+    : `${hostLabel}${hostPos ? ` (${hostPos}${hostDept ? `, ${hostDept}` : ''})` : hostDept ? ` (${hostDept})` : ''}`
 
   return (
     <div
@@ -73,19 +80,19 @@ export default function EventDetailModal({ open, event, onClose, getDeptColor, s
               <Value>{fmt(event.start_date)} ~ {fmt(event.end_date)}</Value>
 
               <Label>부서</Label>
-              <Value>{event.department || '-'}</Value>
+              <Value>{event.department || '미지정'}</Value>
 
               <Label>담당자</Label>
               <Value>{hostLine}</Value>
 
               <Label>클라이언트</Label>
-              <Value>{event.company_name || '-'}</Value>
+              <Value>{event.company_name || '미지정'}</Value>
 
               <Label>제품</Label>
-              <Value>{event.product_name || '-'}</Value>
+              <Value>{event.product_name || '미지정'}</Value>
 
               <Label>지역/장소</Label>
-              <Value>{event.region || '-'}{event.venue ? ` · ${event.venue}` : ''}</Value>
+              <Value>{event.region || '미지정'}{event.venue ? ` · ${event.venue}` : ''}</Value>
             </div>
           </div>
 

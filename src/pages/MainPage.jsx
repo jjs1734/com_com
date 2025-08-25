@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react"; 
 import { useNavigate } from "react-router-dom";
 import EventCalendar from "../components/EventCalendar";
 import { addMonths, subMonths, addDays } from "date-fns";
@@ -48,15 +48,21 @@ const sortOptions = (arr) =>
 function MainPage({ user, events = [], onLogout }) {
   const navigate = useNavigate();
 
+  // ✅ 여기 수정
   const normalizedEvents = useMemo(() => {
-    return (events || []).map((e) => ({
-      ...e,
-      department: s(e.department),
-      company_name: s(e.company_name),
-      product_name: s(e.product_name),
-      host: e.host || null,
-      host_name: s(e.host?.name, "미지정"),
-    }));
+    return (events || []).map((e) => {
+      const resolvedHostName =
+        e.host_name ?? e.hostName ?? (typeof e.host === "string" ? e.host : e.host?.name) ?? null;
+
+      return {
+        ...e,
+        department: s(e.department),
+        company_name: s(e.company_name),
+        product_name: s(e.product_name),
+        host: e.host ?? null,
+        host_name: s(resolvedHostName, "미지정"),
+      };
+    });
   }, [events]);
 
   const [view, setView] = useState("month");
