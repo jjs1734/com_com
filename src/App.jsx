@@ -7,6 +7,7 @@ import LoginPage from "./pages/LoginPage";
 import MainPage from "./pages/MainPage";
 import DirectoryPage from "./pages/DirectoryPage";
 import EventUploadPage from "./pages/EventUploadPage";
+import EventEditPage from "./pages/EventEditPage";
 import Layout from "./components/Layout";
 
 const SESSION_MS = 4 * 60 * 60 * 1000; // 4시간
@@ -133,6 +134,16 @@ export default function App() {
             ) : <Navigate to="/" replace />
           }
         />
+        <Route
+  path="/events/:id/edit"
+  element={
+    isLoggedIn ? (
+      <Layout user={user} onLogout={handleLogout} sessionRemainingSec={remaining} onExtendSession={extendSession}>
+        <EventEditPage onUpdated={fetchEvents} />
+      </Layout>
+    ) : <Navigate to="/" replace />
+  }
+/>
         <Route
           path="/events/new"
           element={

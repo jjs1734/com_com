@@ -1,9 +1,20 @@
-// EventDetailModal.jsx
-import { useEffect, useRef } from 'react'
+// src/components/EventDetailModal.jsx
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
+import { supabase } from '../supabaseClient'
 
-export default function EventDetailModal({ open, event, onClose, getDeptColor, status }) {
+export default function EventDetailModal({
+  open,
+  event,
+  onClose,
+  getDeptColor,
+  status,
+  onRefresh, // ✅ 삭제 후 목록 갱신용 콜백
+}) {
   const overlayRef = useRef(null)
+  const navigate = useNavigate()
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -23,18 +34,42 @@ export default function EventDetailModal({ open, event, onClose, getDeptColor, s
     try { return format(parseISO(String(d)), 'yyyy.MM.dd') } catch { return String(d ?? '-') }
   }
 
-  // ✅ 담당자 이름을 다양한 형태에서 안전하게 추출
   const hostLabel =
     event.host_name ??
     (typeof event.host === 'string' ? event.host : event.host?.name) ??
     '미지정'
 
-  // (선택) 직급/부서가 객체에 들어오는 형태도 대비
   const hostPos = event.host?.position ?? ''
   const hostDept = event.host?.department ?? ''
-  const hostLine = hostLabel === '미지정'
-    ? '미지정'
-    : `${hostLabel}${hostPos ? ` (${hostPos}${hostDept ? `, ${hostDept}` : ''})` : hostDept ? ` (${hostDept})` : ''}`
+  const hostLine =
+    hostLabel === '미지정'
+      ? '미지정'
+      : `${hostLabel}${hostPos ? ` (${hostPos}${hostDept ? `, ${hostDept}` : ''})` : hostDept ? ` (${hostDept})` : ''}`
+
+  // 👉 수정
+  const handleEdit = () => {
+    if (!event?.id) return
+    navigate(`/events/${event.id}/edit`)
+  }
+
+  // 👉 삭제
+  const handleDelete = async () => {
+    if (!event?.id) return
+    if (!window.confirm('정말 삭제하시겠어요? 이 작업은 되돌릴 수 없습니다.')) return
+    try {
+      setDeleting(true)
+      const { error } = await supabase.from('events').delete().eq('id', event.id)
+      if (error) throw error
+      if (typeof onRefresh === 'function') await onRefresh()
+      onClose?.()
+      setTimeout(() => alert('삭제되었습니다.'), 0)
+    } catch (e) {
+      console.error(e)
+      alert(e.message || '삭제 중 오류가 발생했습니다.')
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   return (
     <div
@@ -48,10 +83,6 @@ export default function EventDetailModal({ open, event, onClose, getDeptColor, s
         <div className="absolute -inset-1 rounded-3xl bg-[conic-gradient(at_30%_20%,#ffffff40,transparent_30%,#60a5fa40_60%,transparent_75%,#a78bfa40)] blur-xl opacity-70 pointer-events-none" />
 
         <div className="relative rounded-3xl bg-white/70 backdrop-blur-xl border border-white/50 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.35)] overflow-hidden">
-          <div className="pointer-events-none absolute -top-1/2 -left-1/2 w-[200%] h-[200%] rotate-[-15deg] opacity-30">
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent blur-2xl animate-[shine_3.2s_linear_infinite]" />
-          </div>
-
           {/* 헤더 */}
           <div className="relative px-6 py-5 border-b border-white/60">
             <div className="flex items-center justify-between">
@@ -73,8 +104,6 @@ export default function EventDetailModal({ open, event, onClose, getDeptColor, s
 
           {/* 본문 */}
           <div className="relative px-6 py-5 text-sm text-gray-800">
-            <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-white/0 to-white/20 pointer-events-none" />
-
             <div className="relative grid grid-cols-3 gap-x-4 gap-y-3">
               <Label>기간</Label>
               <Value>{fmt(event.start_date)} ~ {fmt(event.end_date)}</Value>
@@ -97,10 +126,28 @@ export default function EventDetailModal({ open, event, onClose, getDeptColor, s
           </div>
 
           {/* 푸터 */}
-          <div className="relative px-6 pb-6 pt-2 flex justify-end gap-2">
+          <div className="relative px-6 pb-6 pt-2 flex items-center justify-between border-t">
+            {/* 좌하단 수정/삭제 */}
+            <div className="flex gap-2">
+              <button
+                onClick={handleEdit}
+                disabled={!event?.id}
+                className="px-3 py-1.5 rounded-xl border border-gray-300 bg-white/80 hover:bg-white text-sm disabled:opacity-50"
+              >
+                수정
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting || !event?.id}
+                className="px-3 py-1.5 rounded-xl border text-sm text-red-600 border-red-300 hover:bg-red-50 disabled:opacity-50"
+              >
+                {deleting ? '삭제 중...' : '삭제'}
+              </button>
+            </div>
+
             <button
               onClick={onClose}
-              className="px-4 py-2 rounded-xl border border-gray-300 bg-white/80 hover:bg-white transition shadow-sm"
+              className="px-4 py-1.5 rounded-xl bg-black text-white text-sm hover:bg-gray-800"
             >
               닫기
             </button>
@@ -108,7 +155,6 @@ export default function EventDetailModal({ open, event, onClose, getDeptColor, s
         </div>
       </div>
 
-      {/* 애니메이션 */}
       <style>{`
         @keyframes shine {
           0% { transform: translateX(-25%); opacity: .15; }
