@@ -5,10 +5,8 @@ import { supabase } from "../supabaseClient";
 
 // 부서 옵션 (원하는 순서로)
 const DEPT_OPTIONS = [
-  "대표이사","관리부","MK팀",
   "제약 1팀","제약 2팀",
-  "학회 1팀","학회 2팀",
-  "디지털마케팅팀","디자인팀"
+  "학회 1팀","학회 2팀"
 ];
 
 export default function EventUploadPage({ user, onCreated }) {
