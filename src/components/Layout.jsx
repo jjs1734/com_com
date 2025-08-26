@@ -10,11 +10,16 @@ export default function Layout({
 }) {
   const location = useLocation();
 
+  // 기본 메뉴
   const navItems = [
     { label: "행사 조회", path: "/main" },
     { label: "직원 명부", path: "/directory" },
-    { label: "행사 업로드", path: "/events/new" },
   ];
+
+  // ✅ 관리자만 추가
+  if (user?.is_admin) {
+    navItems.push({ label: "행사 업로드", path: "/events/new" });
+  }
 
   const fmt = (sec) => {
     if (sec == null) return "-";
@@ -39,7 +44,10 @@ export default function Layout({
         }}
       >
         {/* 1행-좌: 상단 메뉴 */}
-        <header className="flex gap-3 items-center" style={{ gridColumn: "1 / 2", gridRow: "1 / 2" }}>
+        <header
+          className="flex gap-3 items-center"
+          style={{ gridColumn: "1 / 2", gridRow: "1 / 2" }}
+        >
           {navItems.map((item) => (
             <Link
               key={item.path}
@@ -55,7 +63,7 @@ export default function Layout({
           ))}
         </header>
 
-        {/* 1~2행-우: 로그인 카드 (헤더와 정확히 같은 Y에서 시작) */}
+        {/* 1~2행-우: 로그인 카드 */}
         <aside
           className="sticky top-4"
           style={{ gridColumn: "2 / 3", gridRow: "1 / 3" }}
@@ -63,7 +71,11 @@ export default function Layout({
           <div className="relative rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             {/* 우상단 남은시간/연장 */}
             <div className="absolute top-2 right-2 flex items-center gap-2 text-xs">
-              <span className={`font-mono ${danger ? "text-red-600" : "text-gray-600"}`}>
+              <span
+                className={`font-mono ${
+                  danger ? "text-red-600" : "text-gray-600"
+                }`}
+              >
                 {fmt(sessionRemainingSec)}
               </span>
               <button
@@ -75,10 +87,16 @@ export default function Layout({
               </button>
             </div>
 
-            <h2 className="mb-2 text-lg font-medium text-gray-900">🙋‍♂️ 로그인 정보</h2>
-            <p className="text-sm text-gray-700">사용자: <strong>{user?.name}</strong></p>
-            <p className="text-sm text-gray-700">직급: <strong>{user?.position || "미지정"}</strong></p>
-            <p className="mb-4 text-sm text-gray-700">부서: <strong>{user?.department || "미지정"}</strong></p>
+            <h2 className="mb-2 text-lg font-medium text-gray-900">로그인 정보</h2>
+            <p className="text-sm text-gray-700">
+              성명: <strong>{user?.name}</strong>
+            </p>
+            <p className="text-sm text-gray-700">
+              직급: <strong>{user?.position || "미지정"}</strong>
+            </p>
+            <p className="mb-4 text-sm text-gray-700">
+              부서: <strong>{user?.department || "미지정"}</strong>
+            </p>
 
             <button
               onClick={onLogout}
@@ -89,8 +107,11 @@ export default function Layout({
           </div>
         </aside>
 
-        {/* 2행-좌: 본문(캘린더) — 메뉴 바로 아래에 붙음 */}
-        <main className="min-w-0" style={{ gridColumn: "1 / 2", gridRow: "2 / 3" }}>
+        {/* 2행-좌: 본문 */}
+        <main
+          className="min-w-0"
+          style={{ gridColumn: "1 / 2", gridRow: "2 / 3" }}
+        >
           {children}
         </main>
       </div>

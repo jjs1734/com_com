@@ -16,8 +16,9 @@ export default function EventCalendar({
   onNext,
   holidays = new Set(),
   getDeptColor,
-  onRefresh,      // ✅ 삭제/수정 후 목록 갱신
-  showToast,      // ✅ 전역 토스트 내려받음
+  onRefresh,
+  showToast,
+  user,              // ✅ 로그인 사용자 내려받음
 }) {
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [modalDate, setModalDate] = useState(null)
@@ -175,7 +176,8 @@ export default function EventCalendar({
         getDeptColor={getDeptColor}
         status={status}
         onRefresh={onRefresh}
-        showToast={showToast} 
+        showToast={showToast}
+        user={user}            // ✅ 관리자 권한 확인 위해 전달
       />
 
       {/* 더보기 모달 */}

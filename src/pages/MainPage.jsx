@@ -1,3 +1,4 @@
+// src/pages/MainPage.jsx
 import { useEffect, useState, useMemo } from "react"; 
 import { useNavigate } from "react-router-dom";
 import EventCalendar from "../components/EventCalendar";
@@ -45,7 +46,7 @@ const s = (v, fallback = "미지정") =>
 const sortOptions = (arr) =>
   ["전체", ...Array.from(new Set(arr)).sort((a, b) => a.localeCompare(b, "ko"))];
 
-function MainPage({ user, events = [], onLogout, onRefresh, showToast }) {   // ✅ showToast 추가
+function MainPage({ user, events = [], onLogout, onRefresh, showToast }) {   // ✅ user 포함
   const navigate = useNavigate();
 
   const normalizedEvents = useMemo(() => {
@@ -217,8 +218,9 @@ function MainPage({ user, events = [], onLogout, onRefresh, showToast }) {   // 
             onNext={handleNext}
             holidays={holidaysKR}
             getDeptColor={getDeptColor}
-            onRefresh={onRefresh}     
-            showToast={showToast}    
+            onRefresh={onRefresh}
+            showToast={showToast}
+            user={user}
           />
         </div>
       </div>

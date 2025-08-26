@@ -1,3 +1,4 @@
+// src/components/EventDetailModal.jsx
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
@@ -10,7 +11,8 @@ export default function EventDetailModal({
   getDeptColor,
   status,
   onRefresh,
-  showToast,   // ✅ App.jsx에서 내려옴
+  showToast,
+  user,          // ✅ 현재 로그인 사용자 정보
 }) {
   const overlayRef = useRef(null)
   const navigate = useNavigate()
@@ -31,7 +33,11 @@ export default function EventDetailModal({
     'bg-neutral-900 text-white'
 
   const fmt = (d) => {
-    try { return format(parseISO(String(d)), 'yyyy.MM.dd') } catch { return String(d ?? '-') }
+    try {
+      return format(parseISO(String(d)), 'yyyy.MM.dd')
+    } catch {
+      return String(d ?? '-')
+    }
   }
 
   const hostLabel =
@@ -49,12 +55,20 @@ export default function EventDetailModal({
   // 👉 수정
   const handleEdit = () => {
     if (!event?.id) return
+    if (!user?.is_admin) {
+      showToast("권한이 없습니다. 관리자만 수정할 수 있습니다.", "error", 3000)
+      return
+    }
     navigate(`/events/${event.id}/edit`)
   }
 
   // 👉 삭제
   const handleDelete = async () => {
     if (!event?.id) return
+    if (!user?.is_admin) {
+      showToast("권한이 없습니다. 관리자만 삭제할 수 있습니다.", "error", 3000)
+      return
+    }
     if (!window.confirm('정말 삭제하시겠어요? 이 작업은 되돌릴 수 없습니다.')) return
     try {
       setDeleting(true)
@@ -87,7 +101,12 @@ export default function EventDetailModal({
           <div className="relative px-6 py-5 border-b border-white/60">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <span className={`inline-flex h-2.5 w-2.5 rounded-full ring-4 ring-white/50 ${colorClass.replace('text-white','')}`} />
+                <span
+                  className={`inline-flex h-2.5 w-2.5 rounded-full ring-4 ring-white/50 ${colorClass.replace(
+                    'text-white',
+                    ''
+                  )}`}
+                />
                 <h3 className="text-lg font-semibold text-gray-900 tracking-tight">
                   {event.event_name}
                 </h3>
@@ -106,7 +125,9 @@ export default function EventDetailModal({
           <div className="relative px-6 py-5 text-sm text-gray-800">
             <div className="relative grid grid-cols-3 gap-x-4 gap-y-3">
               <Label>기간</Label>
-              <Value>{fmt(event.start_date)} ~ {fmt(event.end_date)}</Value>
+              <Value>
+                {fmt(event.start_date)} ~ {fmt(event.end_date)}
+              </Value>
 
               <Label>부서</Label>
               <Value>{event.department || '미지정'}</Value>
@@ -121,30 +142,37 @@ export default function EventDetailModal({
               <Value>{event.product_name || '미지정'}</Value>
 
               <Label>지역/장소</Label>
-              <Value>{event.region || '미지정'}{event.venue ? ` · ${event.venue}` : ''}</Value>
+              <Value>
+                {event.region || '미지정'}
+                {event.venue ? ` · ${event.venue}` : ''}
+              </Value>
             </div>
           </div>
 
           {/* 푸터 */}
           <div className="relative px-6 pb-6 pt-2 flex items-center justify-between border-t">
             <div className="flex gap-2">
-              <button
-                onClick={handleEdit}
-                disabled={!event?.id}
-                className="px-3 py-1.5 rounded-xl border border-gray-300 bg-white/80 hover:bg-white text-sm
-                           disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                수정
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleting || !event?.id}
-                className="px-3 py-1.5 rounded-xl border text-sm text-red-600 border-red-300 hover:bg-red-50
-                           disabled:opacity-50 disabled:cursor-not-allowed"
-                aria-busy={deleting ? 'true' : 'false'}
-              >
-                {deleting ? '삭제 중...' : '삭제'}
-              </button>
+              {user?.is_admin && (   /* ✅ 관리자만 버튼 표시 */
+                <>
+                  <button
+                    onClick={handleEdit}
+                    disabled={!event?.id}
+                    className="px-3 py-1.5 rounded-xl border border-gray-300 bg-white/80 hover:bg-white text-sm
+                               disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    수정
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting || !event?.id}
+                    className="px-3 py-1.5 rounded-xl border text-sm text-red-600 border-red-300 hover:bg-red-50
+                               disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-busy={deleting ? 'true' : 'false'}
+                  >
+                    {deleting ? '삭제 중...' : '삭제'}
+                  </button>
+                </>
+              )}
             </div>
 
             <button

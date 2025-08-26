@@ -44,6 +44,7 @@ function LoginPage({ onLogin }) {
         name: user.name,
         department: user.department,
         position: user.position,
+        is_admin: user.is_admin ?? false,   // ✅ 관리자 여부 추가
       })
 
       navigate('/main')
