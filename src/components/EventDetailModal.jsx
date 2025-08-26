@@ -1,4 +1,3 @@
-// src/components/EventDetailModal.jsx
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
@@ -10,7 +9,8 @@ export default function EventDetailModal({
   onClose,
   getDeptColor,
   status,
-  onRefresh, // ✅ 삭제 후 목록 갱신용 콜백
+  onRefresh,
+  showToast,   // ✅ App.jsx에서 내려옴
 }) {
   const overlayRef = useRef(null)
   const navigate = useNavigate()
@@ -62,10 +62,10 @@ export default function EventDetailModal({
       if (error) throw error
       if (typeof onRefresh === 'function') await onRefresh()
       onClose?.()
-      setTimeout(() => alert('삭제되었습니다.'), 0)
+      showToast("삭제되었습니다.", "success")
     } catch (e) {
       console.error(e)
-      alert(e.message || '삭제 중 오류가 발생했습니다.')
+      showToast(e.message || "삭제 중 오류가 발생했습니다.", "error", 3000)
     } finally {
       setDeleting(false)
     }
@@ -127,19 +127,21 @@ export default function EventDetailModal({
 
           {/* 푸터 */}
           <div className="relative px-6 pb-6 pt-2 flex items-center justify-between border-t">
-            {/* 좌하단 수정/삭제 */}
             <div className="flex gap-2">
               <button
                 onClick={handleEdit}
                 disabled={!event?.id}
-                className="px-3 py-1.5 rounded-xl border border-gray-300 bg-white/80 hover:bg-white text-sm disabled:opacity-50"
+                className="px-3 py-1.5 rounded-xl border border-gray-300 bg-white/80 hover:bg-white text-sm
+                           disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 수정
               </button>
               <button
                 onClick={handleDelete}
                 disabled={deleting || !event?.id}
-                className="px-3 py-1.5 rounded-xl border text-sm text-red-600 border-red-300 hover:bg-red-50 disabled:opacity-50"
+                className="px-3 py-1.5 rounded-xl border text-sm text-red-600 border-red-300 hover:bg-red-50
+                           disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-busy={deleting ? 'true' : 'false'}
               >
                 {deleting ? '삭제 중...' : '삭제'}
               </button>
@@ -154,14 +156,6 @@ export default function EventDetailModal({
           </div>
         </div>
       </div>
-
-      <style>{`
-        @keyframes shine {
-          0% { transform: translateX(-25%); opacity: .15; }
-          45% { transform: translateX(25%); opacity: .35; }
-          100% { transform: translateX(60%); opacity: .05; }
-        }
-      `}</style>
     </div>
   )
 }

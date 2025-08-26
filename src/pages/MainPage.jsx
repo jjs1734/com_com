@@ -45,10 +45,9 @@ const s = (v, fallback = "미지정") =>
 const sortOptions = (arr) =>
   ["전체", ...Array.from(new Set(arr)).sort((a, b) => a.localeCompare(b, "ko"))];
 
-function MainPage({ user, events = [], onLogout }) {
+function MainPage({ user, events = [], onLogout, onRefresh, showToast }) {   // ✅ showToast 추가
   const navigate = useNavigate();
 
-  // ✅ 여기 수정
   const normalizedEvents = useMemo(() => {
     return (events || []).map((e) => {
       const resolvedHostName =
@@ -218,6 +217,8 @@ function MainPage({ user, events = [], onLogout }) {
             onNext={handleNext}
             holidays={holidaysKR}
             getDeptColor={getDeptColor}
+            onRefresh={onRefresh}     
+            showToast={showToast}    
           />
         </div>
       </div>

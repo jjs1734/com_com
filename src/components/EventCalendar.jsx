@@ -1,4 +1,3 @@
-// src/components/EventCalendar.jsx
 import { useMemo, useState } from 'react'
 import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek,
@@ -17,6 +16,8 @@ export default function EventCalendar({
   onNext,
   holidays = new Set(),
   getDeptColor,
+  onRefresh,      // ✅ 삭제/수정 후 목록 갱신
+  showToast,      // ✅ 전역 토스트 내려받음
 }) {
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [modalDate, setModalDate] = useState(null)
@@ -173,6 +174,8 @@ export default function EventCalendar({
         onClose={() => setSelectedEvent(null)}
         getDeptColor={getDeptColor}
         status={status}
+        onRefresh={onRefresh}
+        showToast={showToast} 
       />
 
       {/* 더보기 모달 */}

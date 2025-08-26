@@ -1,4 +1,3 @@
-// src/App.jsx
 import { useEffect, useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { supabase } from "./supabaseClient";
@@ -9,19 +8,27 @@ import DirectoryPage from "./pages/DirectoryPage";
 import EventUploadPage from "./pages/EventUploadPage";
 import EventEditPage from "./pages/EventEditPage";
 import Layout from "./components/Layout";
+import Toast from "./components/Toast";   // ✅ 추가
 
 const SESSION_MS = 4 * 60 * 60 * 1000; // 4시간
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [events, setEvents] = useState([]);
-  const [exp, setExp] = useState(null);            // 만료시각(ms)
-  const [remaining, setRemaining] = useState(null); // 남은 초
+  const [exp, setExp] = useState(null);
+  const [remaining, setRemaining] = useState(null);
+
+  // ✅ 전역 토스트
+  const [toast, setToast] = useState(null);
+  const showToast = (msg, type = "success", delay = 2000) => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), delay);
+  };
 
   // 최초 복원
   useEffect(() => {
     const savedUser = localStorage.getItem("app_user");
-    const savedExp  = localStorage.getItem("app_session_exp");
+    const savedExp = localStorage.getItem("app_session_exp");
     if (savedUser && savedExp) {
       try {
         const u = JSON.parse(savedUser);
@@ -45,7 +52,6 @@ export default function App() {
       const left = Math.floor((exp - Date.now()) / 1000);
       setRemaining(Math.max(0, left));
       if (left <= 0) {
-        // ✅ 만료 사유 기록 → 라우팅으로 로그인 화면 뜰 때 alert 1회
         sessionStorage.setItem("logout_reason", "expired");
         handleLogout();
       }
@@ -57,13 +63,12 @@ export default function App() {
 
   const isLoggedIn = !!user;
 
-  // 로그아웃 후 로그인 화면이 보일 때 만료 알림 1회
+  // 로그아웃 후 로그인 화면 알림
   useEffect(() => {
     if (!isLoggedIn) {
       const reason = sessionStorage.getItem("logout_reason");
       if (reason === "expired") {
         sessionStorage.removeItem("logout_reason");
-        // setTimeout으로 렌더 후 알림
         setTimeout(() => alert("세션이 만료되어 로그아웃 되었습니다."), 0);
       }
     }
@@ -114,7 +119,7 @@ export default function App() {
                 sessionRemainingSec={remaining}
                 onExtendSession={extendSession}
               >
-                <MainPage user={user} events={events} />
+                <MainPage user={user} events={events} onRefresh={fetchEvents} showToast={showToast} />
               </Layout>
             ) : <Navigate to="/" replace />
           }
@@ -135,15 +140,15 @@ export default function App() {
           }
         />
         <Route
-  path="/events/:id/edit"
-  element={
-    isLoggedIn ? (
-      <Layout user={user} onLogout={handleLogout} sessionRemainingSec={remaining} onExtendSession={extendSession}>
-        <EventEditPage onUpdated={fetchEvents} />
-      </Layout>
-    ) : <Navigate to="/" replace />
-  }
-/>
+          path="/events/:id/edit"
+          element={
+            isLoggedIn ? (
+              <Layout user={user} onLogout={handleLogout} sessionRemainingSec={remaining} onExtendSession={extendSession}>
+                <EventEditPage onUpdated={fetchEvents} showToast={showToast} />
+              </Layout>
+            ) : <Navigate to="/" replace />
+          }
+        />
         <Route
           path="/events/new"
           element={
@@ -154,13 +159,16 @@ export default function App() {
                 sessionRemainingSec={remaining}
                 onExtendSession={extendSession}
               >
-                <EventUploadPage user={user} onCreated={fetchEvents} />
+                <EventUploadPage user={user} onCreated={fetchEvents} showToast={showToast} />
               </Layout>
             ) : <Navigate to="/" replace />
           }
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+
+      {/* ✅ 전역 토스트 */}
+      <Toast toast={toast} />
     </Router>
   );
 }
