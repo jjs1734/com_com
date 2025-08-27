@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
+import * as XLSX from "xlsx";   // ✅ 엑셀 처리 라이브러리
 
 // 부서 옵션 (행사를 직접 진행하는 4개 팀만)
 const DEPT_OPTIONS = [
@@ -13,7 +14,7 @@ const DEPT_OPTIONS = [
 export default function EventUploadPage({ user, onCreated, showToast }) {
   const navigate = useNavigate();
 
-  // 폼
+  // 폼 (단일 등록)
   const [form, setForm] = useState({
     event_name: "",
     start_date: "",
@@ -31,12 +32,10 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
 
   // DB에서 불러올 마스터들
   const [users, setUsers] = useState([]);
-  const [hist, setHist] = useState({
-    company: [],
-    product: [],
-    region: [],
-    venue: [],
-  });
+  const [hist, setHist] = useState({ company: [], product: [], region: [], venue: [] });
+
+  // 엑셀 업로드 관련
+  const [bulkData, setBulkData] = useState([]);  // ✅ 업로드된 엑셀 데이터
 
   // 최초 로딩
   useEffect(() => {
@@ -53,7 +52,7 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
         const uniq = (arr) =>
           Array.from(new Set((arr || []).filter(Boolean)))
             .map((v) => (typeof v === "string" ? v.trim() : v))
-            .filter((v) => !!v && v !== "미지정")
+            .filter((v) => !!v && v !== "-")
             .sort((a, b) => String(a).localeCompare(String(b), "ko"));
 
         setUsers(usersData || []);
@@ -112,21 +111,55 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
     setForm((f) => ({ ...f, [name]: value }));
   };
 
+  // ✅ 엑셀 템플릿 다운로드
+  const downloadTemplate = () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["event_name", "start_date", "end_date", "department", "host", "company_name", "product_name", "region", "venue"],
+      ["예시 행사", "2025-01-01", "2025-01-02", "학회 1팀", "홍길동", "ABC제약", "항암제", "서울", "COEX"],
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "EventsTemplate");
+    XLSX.writeFile(wb, "event_upload_template.xlsx");
+  };
+
+  // ✅ 엑셀 파일 업로드
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const data = new Uint8Array(evt.target.result);
+      const workbook = XLSX.read(data, { type: "array" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+      setBulkData(rows);
+      showToast(`${rows.length}건의 데이터가 업로드 준비되었습니다.`, "success");
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  // ✅ Excel 날짜 변환 함수
+  const toDateStr = (val) => {
+    if (!val) return null;
+    if (typeof val === "number") {
+      const d = XLSX.SSF.parse_date_code(val);
+      if (!d) return null;
+      const yyyy = d.y;
+      const mm = String(d.m).padStart(2, "0");
+      const dd = String(d.d).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    return String(val);
+  };
+
+  // ✅ 등록 (단일/엑셀 분기)
   const onSubmit = async (e) => {
     e.preventDefault();
 
-    // ✅ 관리자 권한 확인 (도메인 직접 접근 차단)
     if (!user?.is_admin) {
       showToast("권한이 없습니다. 관리자만 행사를 업로드할 수 있습니다.", "error", 3000);
-      return;
-    }
-
-    if (!requiredOk) {
-      setMsg("필수 항목을 입력해 주세요.");
-      return;
-    }
-    if (invalidEnd) {
-      setMsg("종료일은 시작일보다 빠를 수 없습니다.");
       return;
     }
 
@@ -134,36 +167,70 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
     setMsg(null);
 
     try {
-      const payload = {
-        event_name: form.event_name.trim(),
-        start_date: form.start_date,
-        end_date: form.end_date,
-        department: form.department,
-        host: form.host,
-        company_name: form.company_name || null,
-        product_name: form.product_name || null,
-        region: form.region || null,
-        venue: form.venue || null,
-      };
+      if (bulkData.length > 0) {
+        // 📦 엑셀 일괄 업로드
+        const payloads = bulkData.map((row) => {
+          const hostUser = users.find((u) => u.name === row.host);
+          return {
+            event_name: row.event_name?.trim(),
+            start_date: toDateStr(row.start_date),
+            end_date: toDateStr(row.end_date),
+            department: row.department,
+            host: row.host,
+            host_id: hostUser ? hostUser.id : null,
+            company_name: row.company_name || null,
+            product_name: row.product_name || null,
+            region: row.region || null,
+            venue: row.venue || null,
+          };
+        }).filter(p => p.event_name && p.start_date && p.end_date && p.department && p.host);
 
-      const { error } = await supabase.from("events").insert(payload);
-      if (error) throw error;
+        const { error } = await supabase.from("events").insert(payloads);
+        if (error) throw error;
 
-      if (typeof onCreated === "function") {
-        await onCreated();
+        if (typeof onCreated === "function") await onCreated();
+        showToast(`총 ${payloads.length}건 업로드 완료`, "success");
+      } else {
+        // ✏️ 단일 업로드
+        if (!requiredOk) {
+          setMsg("필수 항목을 입력해 주세요.");
+          return;
+        }
+        if (invalidEnd) {
+          setMsg("종료일은 시작일보다 빠를 수 없습니다.");
+          return;
+        }
+
+        const hostUser = users.find((u) => u.name === form.host);
+        const payload = {
+          event_name: form.event_name.trim(),
+          start_date: form.start_date,
+          end_date: form.end_date,
+          department: form.department,
+          host: form.host,
+          host_id: hostUser ? hostUser.id : null,
+          company_name: form.company_name || null,
+          product_name: form.product_name || null,
+          region: form.region || null,
+          venue: form.venue || null,
+        };
+
+        const { error } = await supabase.from("events").insert(payload);
+        if (error) throw error;
+
+        if (typeof onCreated === "function") await onCreated();
+        showToast("등록되었습니다.", "success");
       }
 
-      // ✅ 성공 토스트
-      showToast("등록되었습니다.", "success");
       setTimeout(() => {
         navigate("/main", { replace: true });
-      }, 1500);
+      }, 2000);
     } catch (err) {
       console.error(err);
-      // ✅ 실패 토스트
       showToast(err.message || "등록 중 오류가 발생했습니다.", "error", 3000);
     } finally {
       setLoading(false);
+      setBulkData([]);
     }
   };
 
@@ -172,14 +239,34 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
       <div className="max-w-3xl mx-auto">
         <h1 className="text-xl font-semibold mb-4">행사 업로드</h1>
 
-        {/* ✅ 관리자만 업로드 가능 */}
         {!user?.is_admin ? (
-          <p className="text-red-600 text-sm">
-            권한이 없습니다. 관리자만 행사를 업로드할 수 있습니다.
-          </p>
+          <p className="text-red-600 text-sm">권한이 없습니다. 관리자만 행사를 업로드할 수 있습니다.</p>
         ) : (
           <form onSubmit={onSubmit} className="bg-white rounded-xl border p-6 space-y-5">
-            {/* 행사명 */}
+            
+            {/* 📂 엑셀 업로드 영역 */}
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={downloadTemplate}
+                className="px-3 py-2 rounded bg-blue-500 text-white hover:bg-blue-600 text-sm"
+              >
+                양식 다운로드
+              </button>
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleFileUpload}
+                className="text-sm"
+              />
+              {bulkData.length > 0 && (
+                <span className="text-green-600 text-sm">{bulkData.length}건 준비됨</span>
+              )}
+            </div>
+
+            <hr className="my-4" />
+
+            {/* ✏️ 단일 업로드 폼 */}
             <div>
               <label className="block text-sm text-gray-700 mb-1">행사명 *</label>
               <input
@@ -188,7 +275,6 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
                 onChange={onChange}
                 className="w-full border rounded px-3 py-2"
                 placeholder="예: Regional TTM Summit in Busan"
-                required
               />
             </div>
 
@@ -202,7 +288,6 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
                   value={form.start_date}
                   onChange={onChange}
                   className="w-full border rounded px-3 py-2"
-                  required
                 />
               </div>
               <div>
@@ -213,7 +298,6 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
                   value={form.end_date}
                   onChange={onChange}
                   className="w-full border rounded px-3 py-2"
-                  required
                   min={form.start_date || undefined}
                 />
                 {invalidEnd && (
@@ -233,7 +317,6 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
                   value={form.department}
                   onChange={onChange}
                   className="w-full border rounded px-3 py-2 bg-white"
-                  required
                 >
                   <option value="">선택</option>
                   {DEPT_OPTIONS.map((d) => (
@@ -248,7 +331,6 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
                   value={form.host}
                   onChange={onChange}
                   className="w-full border rounded px-3 py-2 bg-white"
-                  required
                   disabled={!form.department || hostCandidates.length === 0}
                 >
                   <option value="">
@@ -261,7 +343,7 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
               </div>
             </div>
 
-            {/* 클라이언트 / 제품 / 지역 / 장소 */}
+            {/* 클라이언트 / 제품 */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-gray-700 mb-1">클라이언트</label>
@@ -291,6 +373,7 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
               </div>
             </div>
 
+            {/* 지역 / 장소 */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-gray-700 mb-1">지역</label>
@@ -325,10 +408,10 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
             <div className="flex gap-3">
               <button
                 type="submit"
-                disabled={loading || !requiredOk || invalidEnd}
+                disabled={loading || invalidEnd}
                 className="px-4 py-2 rounded bg-black text-white disabled:opacity-50"
               >
-                {loading ? "등록 중..." : "등록"}
+                {loading ? "등록 중..." : bulkData.length > 0 ? "엑셀 등록" : "등록"}
               </button>
               <button
                 type="button"

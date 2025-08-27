@@ -38,15 +38,15 @@ const getDeptColor = (dept, isPast, isOngoing) => {
   return set[tone];
 };
 
-// 안전 문자열화
-const s = (v, fallback = "미지정") =>
+// 안전 문자열화 → fallback을 "-"로 변경
+const s = (v, fallback = "-") =>
   v === null || v === undefined || v === "" ? fallback : String(v);
 
 // 정렬 유틸(문자열 전용)
 const sortOptions = (arr) =>
   ["전체", ...Array.from(new Set(arr)).sort((a, b) => a.localeCompare(b, "ko"))];
 
-function MainPage({ user, events = [], onLogout, onRefresh, showToast }) {   // ✅ user 포함
+function MainPage({ user, events = [], onLogout, onRefresh, showToast }) {
   const navigate = useNavigate();
 
   const normalizedEvents = useMemo(() => {
@@ -60,7 +60,7 @@ function MainPage({ user, events = [], onLogout, onRefresh, showToast }) {   // 
         company_name: s(e.company_name),
         product_name: s(e.product_name),
         host: e.host ?? null,
-        host_name: s(resolvedHostName, "미지정"),
+        host_name: s(resolvedHostName, "-"),   // ✅ fallback도 "-"로 변경
       };
     });
   }, [events]);

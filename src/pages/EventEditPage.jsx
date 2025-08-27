@@ -10,7 +10,7 @@ const DEPT_OPTIONS = [
   "학회 1팀","학회 2팀"
 ];
 
-export default function EventEditPage({ user, onUpdated, showToast }) {   // ✅ user 추가
+export default function EventEditPage({ user, onUpdated, showToast }) {
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -124,7 +124,22 @@ export default function EventEditPage({ user, onUpdated, showToast }) {   // ✅
     if (invalidEnd) return setMsg("종료일은 시작일보다 빠를 수 없습니다.");
 
     try {
-      const { id: _id, ...payload } = form; // id는 빼고 업데이트
+      // ✅ host_id 매핑
+      const hostUser = users.find((u) => u.name === form.host);
+
+      const payload = {
+        event_name: form.event_name.trim(),
+        start_date: form.start_date,
+        end_date: form.end_date,
+        department: form.department,
+        host: form.host,
+        host_id: hostUser ? hostUser.id : null, // ✅ FK 저장
+        company_name: form.company_name || null,
+        product_name: form.product_name || null,
+        region: form.region || null,
+        venue: form.venue || null,
+      };
+
       const { error } = await supabase
         .from("events")
         .update(payload)

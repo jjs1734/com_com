@@ -143,8 +143,13 @@ export default function App() {
           path="/events/:id/edit"
           element={
             isLoggedIn ? (
-              <Layout user={user} onLogout={handleLogout} sessionRemainingSec={remaining} onExtendSession={extendSession}>
-                <EventEditPage onUpdated={fetchEvents} showToast={showToast} />
+              <Layout
+                user={user}
+                onLogout={handleLogout}
+                sessionRemainingSec={remaining}
+                onExtendSession={extendSession}
+              >
+                <EventEditPage user={user} onUpdated={fetchEvents} showToast={showToast} />
               </Layout>
             ) : <Navigate to="/" replace />
           }

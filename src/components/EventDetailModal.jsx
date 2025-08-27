@@ -43,13 +43,13 @@ export default function EventDetailModal({
   const hostLabel =
     event.host_name ??
     (typeof event.host === 'string' ? event.host : event.host?.name) ??
-    '미지정'
+    '-'
 
   const hostPos = event.host?.position ?? ''
   const hostDept = event.host?.department ?? ''
   const hostLine =
-    hostLabel === '미지정'
-      ? '미지정'
+    hostLabel === '-'
+      ? '-'
       : `${hostLabel}${hostPos ? ` (${hostPos}${hostDept ? `, ${hostDept}` : ''})` : hostDept ? ` (${hostDept})` : ''}`
 
   // 👉 수정
@@ -130,20 +130,20 @@ export default function EventDetailModal({
               </Value>
 
               <Label>부서</Label>
-              <Value>{event.department || '미지정'}</Value>
+              <Value>{event.department || '-'}</Value>
 
               <Label>담당자</Label>
               <Value>{hostLine}</Value>
 
               <Label>클라이언트</Label>
-              <Value>{event.company_name || '미지정'}</Value>
+              <Value>{event.company_name || '-'}</Value>
 
               <Label>제품</Label>
-              <Value>{event.product_name || '미지정'}</Value>
+              <Value>{event.product_name || '-'}</Value>
 
               <Label>지역/장소</Label>
               <Value>
-                {event.region || '미지정'}
+                {event.region || '-'}
                 {event.venue ? ` · ${event.venue}` : ''}
               </Value>
             </div>
@@ -152,7 +152,7 @@ export default function EventDetailModal({
           {/* 푸터 */}
           <div className="relative px-6 pb-6 pt-2 flex items-center justify-between border-t">
             <div className="flex gap-2">
-              {user?.is_admin && (   /* ✅ 관리자만 버튼 표시 */
+              {user?.is_admin && (
                 <>
                   <button
                     onClick={handleEdit}
