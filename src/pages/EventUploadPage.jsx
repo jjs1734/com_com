@@ -1,5 +1,5 @@
 // src/pages/EventUploadPage.jsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import * as XLSX from "xlsx";   // ✅ 엑셀 처리 라이브러리
@@ -13,6 +13,9 @@ const DEPT_OPTIONS = [
 
 export default function EventUploadPage({ user, onCreated, showToast }) {
   const navigate = useNavigate();
+
+  // 📂 파일 input 제어
+  const fileInputRef = useRef(null);
 
   // 폼 (단일 등록)
   const [form, setForm] = useState({
@@ -35,7 +38,8 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
   const [hist, setHist] = useState({ company: [], product: [], region: [], venue: [] });
 
   // 엑셀 업로드 관련
-  const [bulkData, setBulkData] = useState([]);  // ✅ 업로드된 엑셀 데이터
+  const [bulkData, setBulkData] = useState([]);  
+  const [fileName, setFileName] = useState("");  
 
   // 최초 로딩
   useEffect(() => {
@@ -135,9 +139,18 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
       const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
       setBulkData(rows);
+      setFileName(file.name);
       showToast(`${rows.length}건의 데이터가 업로드 준비되었습니다.`, "success");
     };
     reader.readAsArrayBuffer(file);
+  };
+
+  // ✅ 업로드 취소
+  const handleCancelFile = () => {
+    setBulkData([]);
+    setFileName("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    showToast("엑셀 업로드가 취소되었습니다.", "info");
   };
 
   // ✅ Excel 날짜 변환 함수
@@ -231,6 +244,8 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
     } finally {
       setLoading(false);
       setBulkData([]);
+      setFileName("");
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -257,151 +272,167 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
                 type="file"
                 accept=".xlsx,.xls"
                 onChange={handleFileUpload}
+                ref={fileInputRef}
                 className="text-sm"
               />
               {bulkData.length > 0 && (
-                <span className="text-green-600 text-sm">{bulkData.length}건 준비됨</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-green-600 text-sm">
+                    {fileName} ({bulkData.length}건 준비됨)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCancelFile}
+                    className="px-2 py-1 rounded bg-red-500 text-white text-xs hover:bg-red-600"
+                  >
+                    삭제
+                  </button>
+                </div>
               )}
             </div>
 
             <hr className="my-4" />
 
             {/* ✏️ 단일 업로드 폼 */}
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">행사명 *</label>
-              <input
-                name="event_name"
-                value={form.event_name}
-                onChange={onChange}
-                className="w-full border rounded px-3 py-2"
-                placeholder="예: Regional TTM Summit in Busan"
-              />
-            </div>
+            {bulkData.length === 0 && (
+              <>
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">행사명 *</label>
+                  <input
+                    name="event_name"
+                    value={form.event_name}
+                    onChange={onChange}
+                    className="w-full border rounded px-3 py-2"
+                    placeholder="예: Regional TTM Summit in Busan"
+                  />
+                </div>
 
-            {/* 기간 */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">시작일 *</label>
-                <input
-                  type="date"
-                  name="start_date"
-                  value={form.start_date}
-                  onChange={onChange}
-                  className="w-full border rounded px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">종료일 *</label>
-                <input
-                  type="date"
-                  name="end_date"
-                  value={form.end_date}
-                  onChange={onChange}
-                  className="w-full border rounded px-3 py-2"
-                  min={form.start_date || undefined}
-                />
-                {invalidEnd && (
-                  <p className="mt-1 text-xs text-red-600">
-                    종료일은 시작일보다 빠를 수 없습니다.
-                  </p>
-                )}
-              </div>
-            </div>
+                {/* 기간 */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">시작일 *</label>
+                    <input
+                      type="date"
+                      name="start_date"
+                      value={form.start_date}
+                      onChange={onChange}
+                      className="w-full border rounded px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">종료일 *</label>
+                    <input
+                      type="date"
+                      name="end_date"
+                      value={form.end_date}
+                      onChange={onChange}
+                      className="w-full border rounded px-3 py-2"
+                      min={form.start_date || undefined}
+                    />
+                    {invalidEnd && (
+                      <p className="mt-1 text-xs text-red-600">
+                        종료일은 시작일보다 빠를 수 없습니다.
+                      </p>
+                    )}
+                  </div>
+                </div>
 
-            {/* 부서 / 담당자 */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">부서 *</label>
-                <select
-                  name="department"
-                  value={form.department}
-                  onChange={onChange}
-                  className="w-full border rounded px-3 py-2 bg-white"
-                >
-                  <option value="">선택</option>
-                  {DEPT_OPTIONS.map((d) => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">담당자 *</label>
-                <select
-                  name="host"
-                  value={form.host}
-                  onChange={onChange}
-                  className="w-full border rounded px-3 py-2 bg-white"
-                  disabled={!form.department || hostCandidates.length === 0}
-                >
-                  <option value="">
-                    {!form.department ? "부서를 먼저 선택하세요" : "담당자 선택"}
-                  </option>
-                  {hostCandidates.map((name) => (
-                    <option key={name} value={name}>{name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
+                {/* 부서 / 담당자 */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">부서 *</label>
+                    <select
+                      name="department"
+                      value={form.department}
+                      onChange={onChange}
+                      className="w-full border rounded px-3 py-2 bg-white"
+                    >
+                      <option value="">선택</option>
+                      {DEPT_OPTIONS.map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">담당자 *</label>
+                    <select
+                      name="host"
+                      value={form.host}
+                      onChange={onChange}
+                      className="w-full border rounded px-3 py-2 bg-white"
+                      disabled={!form.department || hostCandidates.length === 0}
+                    >
+                      <option value="">
+                        {!form.department ? "부서를 먼저 선택하세요" : "담당자 선택"}
+                      </option>
+                      {hostCandidates.map((name) => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
 
-            {/* 클라이언트 / 제품 */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">클라이언트</label>
-                <input
-                  name="company_name"
-                  value={form.company_name}
-                  onChange={onChange}
-                  className="w-full border rounded px-3 py-2"
-                  list="companyOptions"
-                />
-                <datalist id="companyOptions">
-                  {hist.company.map((v) => <option key={v} value={v} />)}
-                </datalist>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">제품</label>
-                <input
-                  name="product_name"
-                  value={form.product_name}
-                  onChange={onChange}
-                  className="w-full border rounded px-3 py-2"
-                  list="productOptions"
-                />
-                <datalist id="productOptions">
-                  {hist.product.map((v) => <option key={v} value={v} />)}
-                </datalist>
-              </div>
-            </div>
+                {/* 클라이언트 / 제품 */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">클라이언트</label>
+                    <input
+                      name="company_name"
+                      value={form.company_name}
+                      onChange={onChange}
+                      className="w-full border rounded px-3 py-2"
+                      list="companyOptions"
+                    />
+                    <datalist id="companyOptions">
+                      {hist.company.map((v) => <option key={v} value={v} />)}
+                    </datalist>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">제품</label>
+                    <input
+                      name="product_name"
+                      value={form.product_name}
+                      onChange={onChange}
+                      className="w-full border rounded px-3 py-2"
+                      list="productOptions"
+                    />
+                    <datalist id="productOptions">
+                      {hist.product.map((v) => <option key={v} value={v} />)}
+                    </datalist>
+                  </div>
+                </div>
 
-            {/* 지역 / 장소 */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">지역</label>
-                <input
-                  name="region"
-                  value={form.region}
-                  onChange={onChange}
-                  className="w-full border rounded px-3 py-2"
-                  list="regionOptions"
-                />
-                <datalist id="regionOptions">
-                  {hist.region.map((v) => <option key={v} value={v} />)}
-                </datalist>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">장소</label>
-                <input
-                  name="venue"
-                  value={form.venue}
-                  onChange={onChange}
-                  className="w-full border rounded px-3 py-2"
-                  list="venueOptions"
-                />
-                <datalist id="venueOptions">
-                  {hist.venue.map((v) => <option key={v} value={v} />)}
-                </datalist>
-              </div>
-            </div>
+                {/* 지역 / 장소 */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">지역</label>
+                    <input
+                      name="region"
+                      value={form.region}
+                      onChange={onChange}
+                      className="w-full border rounded px-3 py-2"
+                      list="regionOptions"
+                    />
+                    <datalist id="regionOptions">
+                      {hist.region.map((v) => <option key={v} value={v} />)}
+                    </datalist>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">장소</label>
+                    <input
+                      name="venue"
+                      value={form.venue}
+                      onChange={onChange}
+                      className="w-full border rounded px-3 py-2"
+                      list="venueOptions"
+                    />
+                    <datalist id="venueOptions">
+                      {hist.venue.map((v) => <option key={v} value={v} />)}
+                    </datalist>
+                  </div>
+                </div>
+              </>
+            )}
 
             {msg && <p className="text-sm text-gray-600">{msg}</p>}
 
