@@ -1,5 +1,7 @@
 // src/components/Layout.jsx
 import { Link, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { supabase } from "../supabaseClient";
 
 export default function Layout({
   user,
@@ -9,6 +11,7 @@ export default function Layout({
   onExtendSession,
 }) {
   const location = useLocation();
+  const [onlineUsers, setOnlineUsers] = useState([]);
 
   // 기본 메뉴
   const navItems = [
@@ -16,7 +19,6 @@ export default function Layout({
     { label: "직원 명부", path: "/directory" },
   ];
 
-  // ✅ 관리자만 추가
   if (user?.is_admin) {
     navItems.push({ label: "행사 업로드", path: "/events/new" });
   }
@@ -33,6 +35,64 @@ export default function Layout({
   const danger = sessionRemainingSec != null && sessionRemainingSec <= 600;
 
   const ASIDE_W = 320; // 우측 카드 폭
+
+  // ✅ online_users 실시간 구독
+  useEffect(() => {
+    // 초기 데이터 로드
+    fetchOnlineUsers();
+
+    const channel = supabase
+      .channel("online-users-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "online_users" },
+        (payload) => {
+          setOnlineUsers((prev) => {
+            if (payload.eventType === "INSERT") {
+              const exists = prev.find(
+                (u) => u.user_id === payload.new.user_id
+              );
+              return exists ? prev : [...prev, payload.new];
+            }
+            if (payload.eventType === "UPDATE") {
+              return prev.map((u) =>
+                u.user_id === payload.new.user_id ? payload.new : u
+              );
+            }
+            if (payload.eventType === "DELETE") {
+              // ✅ DELETE 이벤트에서 user_id 또는 id 확인
+              const deletedId =
+                payload.old?.user_id || payload.old?.id || null;
+
+              if (!deletedId) {
+                console.warn("DELETE 이벤트에 user_id/id 없음:", payload.old);
+                return prev;
+              }
+
+              return prev.filter(
+                (u) =>
+                  u.user_id !== deletedId && u.id !== deletedId
+              );
+            }
+            return prev;
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const fetchOnlineUsers = async () => {
+    const { data, error } = await supabase
+      .from("online_users")
+      .select("user_id, name, department");
+    if (!error) {
+      setOnlineUsers(data || []);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#f7f7f7] py-6">
@@ -63,11 +123,12 @@ export default function Layout({
           ))}
         </header>
 
-        {/* 1~2행-우: 로그인 카드 */}
+        {/* 1~2행-우: 로그인 카드 + 접속자 */}
         <aside
-          className="sticky top-4"
+          className="sticky top-4 space-y-4"
           style={{ gridColumn: "2 / 3", gridRow: "1 / 3" }}
         >
+          {/* 로그인 정보 카드 */}
           <div className="relative rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             {/* 우상단 남은시간/연장 */}
             <div className="absolute top-2 right-2 flex items-center gap-2 text-xs">
@@ -87,15 +148,17 @@ export default function Layout({
               </button>
             </div>
 
-            <h2 className="mb-2 text-lg font-medium text-gray-900">로그인 정보</h2>
+            <h2 className="mb-2 text-lg font-medium text-gray-900">
+              로그인 정보
+            </h2>
             <p className="text-sm text-gray-700">
               성명: <strong>{user?.name}</strong>
             </p>
             <p className="text-sm text-gray-700">
-              직급: <strong>{user?.position || "미지정"}</strong>
+              직급: <strong>{user?.position || "-"}</strong>
             </p>
             <p className="mb-4 text-sm text-gray-700">
-              부서: <strong>{user?.department || "미지정"}</strong>
+              부서: <strong>{user?.department || "-"}</strong>
             </p>
 
             <button
@@ -104,6 +167,33 @@ export default function Layout({
             >
               로그아웃
             </button>
+          </div>
+
+          {/* ✅ 접속자 리스트 */}
+          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+            <h2 className="mb-2 text-lg font-medium text-gray-900">접속자</h2>
+            {onlineUsers.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                현재 접속자가 없습니다.
+              </p>
+            ) : (
+              <ul className="space-y-1 max-h-64 overflow-y-auto text-sm">
+                {onlineUsers.map((u) => (
+                  <li
+                    key={u.user_id}
+                    className="flex items-center gap-2 text-gray-700"
+                  >
+                    <span className="h-2.5 w-2.5 rounded-full bg-green-500"></span>
+                    <span>{u.name}</span>
+                    {u.department && (
+                      <span className="text-gray-400 text-xs">
+                        {u.department}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </aside>
 
