@@ -177,6 +177,23 @@ export default function Layout({
     return (!doneStart || end >= doneStart) && (!doneEnd || end <= doneEnd);
   });
 
+  // ✅ 이벤트 클릭 → 상세 데이터 fetch 후 모달 열기
+  const handleOpenEvent = async (ev) => {
+    try {
+      const { data, error } = await supabase
+        .from("events")
+        .select("*")
+        .eq("id", ev.id)
+        .single();
+      if (error) throw error;
+      setSelectedEvent(data);
+      setModalOpen(true);
+    } catch (e) {
+      console.error(e);
+      showToast("행사 정보를 불러올 수 없습니다.", "error", 3000);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#f7f7f7] py-6">
       <div
@@ -257,7 +274,7 @@ export default function Layout({
                       <li
                         key={ev.id}
                         className="text-gray-700 cursor-pointer hover:underline"
-                        onClick={() => { setSelectedEvent(ev); setModalOpen(true); }}
+                        onClick={() => handleOpenEvent(ev)}
                       >
                         {fmtRange(ev.start_date, ev.end_date)} {ev.event_name} {ev.region || ""}
                       </li>
@@ -276,7 +293,7 @@ export default function Layout({
                       <li
                         key={row.event.id}
                         className="text-gray-700 cursor-pointer hover:underline"
-                        onClick={() => { setSelectedEvent(row.event); setModalOpen(true); }}
+                        onClick={() => handleOpenEvent(row.event)}
                       >
                         {row.rangeText} {row.event.event_name} {row.event.region || ""}
                       </li>
@@ -314,7 +331,7 @@ export default function Layout({
                       <li
                         key={ev.id}
                         className="text-gray-700 cursor-pointer hover:underline"
-                        onClick={() => { setSelectedEvent(ev); setModalOpen(true); }}
+                        onClick={() => handleOpenEvent(ev)}
                       >
                         {fmtRange(ev.start_date, ev.end_date)} {ev.event_name} {ev.region || ""}
                       </li>
@@ -333,7 +350,7 @@ export default function Layout({
                       <li
                         key={row.event.id}
                         className="text-gray-700 cursor-pointer hover:underline"
-                        onClick={() => { setSelectedEvent(row.event); setModalOpen(true); }}
+                        onClick={() => handleOpenEvent(row.event)}
                       >
                         {row.rangeText} {row.event.event_name} {row.event.region || ""}
                       </li>
