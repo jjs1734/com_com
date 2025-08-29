@@ -59,7 +59,7 @@ function LoginPage({ onLogin }) {
         onSubmit={handleLogin}
         className="bg-white/30 backdrop-blur-md border border-white/20 p-10 rounded-2xl shadow-xl max-w-md w-full"
       >
-        <h1 className="text-2xl font-bold text-center mb-6 text-gray-800">🔐 사내 커뮤니티 로그인</h1>
+        <h1 className="text-2xl font-bold text-center mb-6 text-gray-800">InnoN 로그인</h1>
 
         {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
 

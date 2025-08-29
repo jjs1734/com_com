@@ -44,6 +44,7 @@ export default function App() {
             user_id: u.id,
             name: u.name,
             department: u.department,
+            position: u.position,
             last_seen: new Date().toISOString(),
           });
         } else {

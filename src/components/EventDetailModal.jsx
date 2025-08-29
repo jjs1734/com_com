@@ -1,8 +1,9 @@
 // src/components/EventDetailModal.jsx
-import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { format, parseISO } from 'date-fns'
-import { supabase } from '../supabaseClient'
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { format, parseISO, eachDayOfInterval, isSameDay, min, max } from "date-fns";
+import { ko } from "date-fns/locale";
+import { supabase } from "../supabaseClient";
 
 export default function EventDetailModal({
   open,
@@ -12,78 +13,226 @@ export default function EventDetailModal({
   status,
   onRefresh,
   showToast,
-  user,          // ✅ 현재 로그인 사용자 정보
+  user,
 }) {
-  const overlayRef = useRef(null)
-  const navigate = useNavigate()
-  const [deleting, setDeleting] = useState(false)
+  const overlayRef = useRef(null);
+  const navigate = useNavigate();
+  const [deleting, setDeleting] = useState(false);
+  const [supports, setSupports] = useState([]);
 
   useEffect(() => {
-    if (!open) return
-    const onKey = (e) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+    if (!open || !event?.id) return;
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
 
-  if (!open || !event) return null
+    fetchSupports();
 
-  const tone = typeof status === 'function' ? status(event) : 'upcoming'
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, event?.id]);
+
+  const fetchSupports = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("event_supports")
+        .select("support_date, users ( id, name, department, position )")
+        .eq("event_id", event.id)
+        .order("support_date", { ascending: true });
+
+      if (error) throw error;
+      setSupports(data || []);
+    } catch (err) {
+      console.error(err);
+      showToast("지원 인력 불러오기 오류", "error", 3000);
+    }
+  };
+
+  if (!open || !event) return null;
+
+  const tone = typeof status === "function" ? status(event) : "upcoming";
   const colorClass =
-    getDeptColor?.(event.department, tone === 'past', tone === 'ongoing') ??
-    'bg-neutral-900 text-white'
+    getDeptColor?.(event.department, tone === "past", tone === "ongoing") ??
+    "bg-neutral-900 text-white";
 
   const fmt = (d) => {
     try {
-      return format(parseISO(String(d)), 'yyyy.MM.dd')
+      return format(parseISO(String(d)), "yyyy.MM.dd");
     } catch {
-      return String(d ?? '-')
+      return String(d ?? "-");
     }
-  }
+  };
+
+  const fmtWithDay = (d) => {
+    try {
+      return format(parseISO(String(d)), "MM.dd(EEE)", { locale: ko });
+    } catch {
+      return String(d ?? "-");
+    }
+  };
 
   const hostLabel =
     event.host_name ??
-    (typeof event.host === 'string' ? event.host : event.host?.name) ??
-    '-'
+    (typeof event.host === "string" ? event.host : event.host?.name) ??
+    "-";
 
-  const hostPos = event.host?.position ?? ''
-  const hostDept = event.host?.department ?? ''
+  const hostPos = event.host?.position ?? "";
+  const hostDept = event.host?.department ?? "";
   const hostLine =
-    hostLabel === '-'
-      ? '-'
-      : `${hostLabel}${hostPos ? ` (${hostPos}${hostDept ? `, ${hostDept}` : ''})` : hostDept ? ` (${hostDept})` : ''}`
+    hostLabel === "-"
+      ? "-"
+      : `${hostLabel}${
+          hostPos ? ` (${hostPos}${hostDept ? `, ${hostDept}` : ""})` : hostDept ? ` (${hostDept})` : ""
+        }`;
 
-  // 👉 수정
+  // 직급 우선순위
+  const positionOrder = [
+    "대표이사",
+    "이사",
+    "부장",
+    "차장",
+    "과장",
+    "대리",
+    "사원",
+  ];
+
+  const sortByPositionAndName = (arr) => {
+    return [...arr].sort((a, b) => {
+      const aIdx = positionOrder.indexOf(a.users?.position || "");
+      const bIdx = positionOrder.indexOf(b.users?.position || "");
+      if (aIdx !== bIdx) return aIdx - bIdx;
+      return (a.users?.name || "").localeCompare(b.users?.name || "", "ko");
+    });
+  };
+
+  // 지원 인력 표시
+  const renderSupports = () => {
+    if (!supports.length) return <p className="text-sm text-gray-500">지원 인력 없음</p>;
+
+    const start = parseISO(event.start_date);
+    const end = parseISO(event.end_date);
+    const eventDays = eachDayOfInterval({ start, end });
+
+    // 날짜별로 그룹화
+    const byDate = {};
+    for (const s of supports) {
+      const d = parseISO(s.support_date);
+      const key = format(d, "yyyy-MM-dd");
+      if (!byDate[key]) byDate[key] = [];
+      byDate[key].push(s);
+    }
+
+    // full range (모든 날짜 다 커버하는 지원자)
+    const fullRangeSupports = [];
+    const partialGroups = [];
+
+    supports.forEach((s) => {
+      const d = parseISO(s.support_date);
+      const userId = s.users?.id;
+      if (!userId) return;
+
+      // 특정 유저가 모든 날 포함하는지 확인
+      const userDates = supports
+        .filter((x) => x.users?.id === userId)
+        .map((x) => parseISO(x.support_date).getTime());
+
+      const userMin = min(userDates.map((t) => new Date(t)));
+      const userMax = max(userDates.map((t) => new Date(t)));
+
+      const coversAll =
+        isSameDay(userMin, start) &&
+        isSameDay(userMax, end) &&
+        eventDays.every((d) => userDates.includes(d.getTime()));
+
+      if (coversAll) {
+        if (!fullRangeSupports.find((u) => u.users?.id === userId)) {
+          fullRangeSupports.push(s);
+        }
+      } else {
+        const key = `${format(userMin, "yyyy-MM-dd")}~${format(userMax, "yyyy-MM-dd")}`;
+        let group = partialGroups.find((g) => g.key === key);
+        if (!group) {
+          group = { key, start: userMin, end: userMax, list: [] };
+          partialGroups.push(group);
+        }
+        if (!group.list.find((u) => u.users?.id === userId)) {
+          group.list.push(s);
+        }
+      }
+    });
+
+    return (
+      <div className="space-y-2">
+        {/* 전체 기간 지원자 */}
+        {fullRangeSupports.length > 0 && (
+          <ul className="text-sm">
+            {sortByPositionAndName(fullRangeSupports).map((s, idx) => {
+              const u = s.users;
+              return (
+                <li key={`full-${idx}`} className="text-gray-700">
+                  {u?.name || "-"} {u?.position ? `(${u.position})` : ""}{" "}
+                  {u?.department ? `[${u.department}]` : ""}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {/* 부분 지원자 그룹 */}
+        {partialGroups
+          .sort((a, b) => a.start - b.start) // ✅ 날짜 빠른 순으로 정렬
+          .map((g, gi) => (
+            <div key={gi}>
+              <div className="font-semibold mt-2 mb-1 text-gray-900">
+                {fmtWithDay(g.start)} ~ {isSameDay(g.start, g.end) ? "" : fmtWithDay(g.end)}
+              </div>
+              <ul className="text-sm">
+                {sortByPositionAndName(g.list).map((s, idx) => {
+                  const u = s.users;
+                  return (
+                    <li key={`partial-${gi}-${idx}`} className="text-gray-700">
+                      {u?.name || "-"} {u?.position ? `(${u.position})` : ""}{" "}
+                      {u?.department ? `[${u.department}]` : ""}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+      </div>
+    );
+  };
+
+  // 수정
   const handleEdit = () => {
-    if (!event?.id) return
+    if (!event?.id) return;
     if (!user?.is_admin) {
-      showToast("권한이 없습니다. 관리자만 수정할 수 있습니다.", "error", 3000)
-      return
+      showToast("권한이 없습니다. 관리자만 수정할 수 있습니다.", "error", 3000);
+      return;
     }
-    navigate(`/events/${event.id}/edit`)
-  }
+    navigate(`/events/${event.id}/edit`);
+  };
 
-  // 👉 삭제
+  // 삭제
   const handleDelete = async () => {
-    if (!event?.id) return
+    if (!event?.id) return;
     if (!user?.is_admin) {
-      showToast("권한이 없습니다. 관리자만 삭제할 수 있습니다.", "error", 3000)
-      return
+      showToast("권한이 없습니다. 관리자만 삭제할 수 있습니다.", "error", 3000);
+      return;
     }
-    if (!window.confirm('정말 삭제하시겠어요? 이 작업은 되돌릴 수 없습니다.')) return
+    if (!window.confirm("정말 삭제하시겠어요? 이 작업은 되돌릴 수 없습니다.")) return;
     try {
-      setDeleting(true)
-      const { error } = await supabase.from('events').delete().eq('id', event.id)
-      if (error) throw error
-      if (typeof onRefresh === 'function') await onRefresh()
-      onClose?.()
-      showToast("삭제되었습니다.", "success")
+      setDeleting(true);
+      const { error } = await supabase.from("events").delete().eq("id", event.id);
+      if (error) throw error;
+      if (typeof onRefresh === "function") await onRefresh();
+      onClose?.();
+      showToast("삭제되었습니다.", "success");
     } catch (e) {
-      console.error(e)
-      showToast(e.message || "삭제 중 오류가 발생했습니다.", "error", 3000)
+      console.error(e);
+      showToast(e.message || "삭제 중 오류가 발생했습니다.", "error", 3000);
     } finally {
-      setDeleting(false)
+      setDeleting(false);
     }
-  }
+  };
 
   return (
     <div
@@ -103,8 +252,8 @@ export default function EventDetailModal({
               <div className="flex items-center gap-3">
                 <span
                   className={`inline-flex h-2.5 w-2.5 rounded-full ring-4 ring-white/50 ${colorClass.replace(
-                    'text-white',
-                    ''
+                    "text-white",
+                    ""
                   )}`}
                 />
                 <h3 className="text-lg font-semibold text-gray-900 tracking-tight">
@@ -130,22 +279,28 @@ export default function EventDetailModal({
               </Value>
 
               <Label>부서</Label>
-              <Value>{event.department || '-'}</Value>
+              <Value>{event.department || "-"}</Value>
 
               <Label>담당자</Label>
               <Value>{hostLine}</Value>
 
               <Label>클라이언트</Label>
-              <Value>{event.company_name || '-'}</Value>
+              <Value>{event.company_name || "-"}</Value>
 
               <Label>제품</Label>
-              <Value>{event.product_name || '-'}</Value>
+              <Value>{event.product_name || "-"}</Value>
 
               <Label>지역/장소</Label>
               <Value>
-                {event.region || '-'}
-                {event.venue ? ` · ${event.venue}` : ''}
+                {event.region || "-"}
+                {event.venue ? ` · ${event.venue}` : ""}
               </Value>
+            </div>
+
+            {/* 지원 인력 */}
+            <div className="mt-6">
+              <h4 className="font-semibold text-gray-900 mb-2">지원 인력</h4>
+              {renderSupports()}
             </div>
           </div>
 
@@ -167,9 +322,9 @@ export default function EventDetailModal({
                     disabled={deleting || !event?.id}
                     className="px-3 py-1.5 rounded-xl border text-sm text-red-600 border-red-300 hover:bg-red-50
                                disabled:opacity-50 disabled:cursor-not-allowed"
-                    aria-busy={deleting ? 'true' : 'false'}
+                    aria-busy={deleting ? "true" : "false"}
                   >
-                    {deleting ? '삭제 중...' : '삭제'}
+                    {deleting ? "삭제 중..." : "삭제"}
                   </button>
                 </>
               )}
@@ -185,12 +340,12 @@ export default function EventDetailModal({
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function Label({ children }) {
-  return <span className="text-gray-500">{children}</span>
+  return <span className="text-gray-500">{children}</span>;
 }
 function Value({ children }) {
-  return <span className="col-span-2 font-medium text-gray-900">{children}</span>
+  return <span className="col-span-2 font-medium text-gray-900">{children}</span>;
 }

@@ -34,11 +34,10 @@ export default function Layout({
   };
   const danger = sessionRemainingSec != null && sessionRemainingSec <= 600;
 
-  const ASIDE_W = 320; // 우측 카드 폭
+  const ASIDE_W = 320;
 
   // ✅ online_users 실시간 구독
   useEffect(() => {
-    // 초기 데이터 로드
     fetchOnlineUsers();
 
     const channel = supabase
@@ -48,31 +47,15 @@ export default function Layout({
         { event: "*", schema: "public", table: "online_users" },
         (payload) => {
           setOnlineUsers((prev) => {
-            if (payload.eventType === "INSERT") {
-              const exists = prev.find(
-                (u) => u.user_id === payload.new.user_id
-              );
-              return exists ? prev : [...prev, payload.new];
-            }
-            if (payload.eventType === "UPDATE") {
-              return prev.map((u) =>
-                u.user_id === payload.new.user_id ? payload.new : u
-              );
+            if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
+              // 동일 user_id 제거 후 새 데이터 추가
+              const updated = prev.filter((u) => u.user_id !== payload.new.user_id);
+              return [...updated, payload.new];
             }
             if (payload.eventType === "DELETE") {
-              // ✅ DELETE 이벤트에서 user_id 또는 id 확인
-              const deletedId =
-                payload.old?.user_id || payload.old?.id || null;
-
-              if (!deletedId) {
-                console.warn("DELETE 이벤트에 user_id/id 없음:", payload.old);
-                return prev;
-              }
-
-              return prev.filter(
-                (u) =>
-                  u.user_id !== deletedId && u.id !== deletedId
-              );
+              // Supabase에서 old.user_id 안 내려줄 경우 대비
+              const deletedUserId = payload.old.user_id || payload.old.id;
+              return prev.filter((u) => u.user_id !== deletedUserId);
             }
             return prev;
           });
@@ -103,7 +86,7 @@ export default function Layout({
           gridTemplateRows: "auto 1fr",
         }}
       >
-        {/* 1행-좌: 상단 메뉴 */}
+        {/* 상단 메뉴 */}
         <header
           className="flex gap-3 items-center"
           style={{ gridColumn: "1 / 2", gridRow: "1 / 2" }}
@@ -123,14 +106,13 @@ export default function Layout({
           ))}
         </header>
 
-        {/* 1~2행-우: 로그인 카드 + 접속자 */}
+        {/* 우측 사이드 (로그인 + 접속자) */}
         <aside
           className="sticky top-4 space-y-4"
           style={{ gridColumn: "2 / 3", gridRow: "1 / 3" }}
         >
-          {/* 로그인 정보 카드 */}
+          {/* 로그인 정보 */}
           <div className="relative rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            {/* 우상단 남은시간/연장 */}
             <div className="absolute top-2 right-2 flex items-center gap-2 text-xs">
               <span
                 className={`font-mono ${
@@ -142,7 +124,6 @@ export default function Layout({
               <button
                 onClick={onExtendSession}
                 className="px-2 py-0.5 rounded border border-gray-300 bg-white hover:bg-gray-100"
-                title="4시간 연장"
               >
                 연장
               </button>
@@ -169,13 +150,11 @@ export default function Layout({
             </button>
           </div>
 
-          {/* ✅ 접속자 리스트 */}
+          {/* 접속자 */}
           <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <h2 className="mb-2 text-lg font-medium text-gray-900">접속자</h2>
             {onlineUsers.length === 0 ? (
-              <p className="text-sm text-gray-500">
-                현재 접속자가 없습니다.
-              </p>
+              <p className="text-sm text-gray-500">현재 접속자가 없습니다.</p>
             ) : (
               <ul className="space-y-1 max-h-64 overflow-y-auto text-sm">
                 {onlineUsers.map((u) => (
@@ -197,7 +176,7 @@ export default function Layout({
           </div>
         </aside>
 
-        {/* 2행-좌: 본문 */}
+        {/* 본문 */}
         <main
           className="min-w-0"
           style={{ gridColumn: "1 / 2", gridRow: "2 / 3" }}
