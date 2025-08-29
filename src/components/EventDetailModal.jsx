@@ -38,7 +38,14 @@ export default function EventDetailModal({
         .order("support_date", { ascending: true });
 
       if (error) throw error;
-      setSupports(data || []);
+
+      // ✅ 날짜 문자열을 yyyy-MM-dd 로 normalize
+      const normalized = (data || []).map((s) => ({
+        ...s,
+        support_date: format(parseISO(s.support_date), "yyyy-MM-dd"),
+      }));
+
+      setSupports(normalized);
     } catch (err) {
       console.error(err);
       showToast("지원 인력 불러오기 오류", "error", 3000);
@@ -83,22 +90,17 @@ export default function EventDetailModal({
         }`;
 
   // 직급 우선순위
-  const positionOrder = [
-    "대표이사",
-    "이사",
-    "부장",
-    "차장",
-    "과장",
-    "대리",
-    "사원",
-  ];
+  const positionOrder = ["대표이사", "이사", "부장", "차장", "과장", "대리", "사원"];
 
   const sortByPositionAndName = (arr) => {
     return [...arr].sort((a, b) => {
-      const aIdx = positionOrder.indexOf(a.users?.position || "");
-      const bIdx = positionOrder.indexOf(b.users?.position || "");
+      const aIdx = positionOrder.indexOf(a.user?.position || a.users?.position || "");
+      const bIdx = positionOrder.indexOf(b.user?.position || b.users?.position || "");
       if (aIdx !== bIdx) return aIdx - bIdx;
-      return (a.users?.name || "").localeCompare(b.users?.name || "", "ko");
+      return (a.user?.name || a.users?.name || "").localeCompare(
+        b.user?.name || b.users?.name || "",
+        "ko"
+      );
     });
   };
 
@@ -110,39 +112,59 @@ export default function EventDetailModal({
     const end = parseISO(event.end_date);
     const eventDays = eachDayOfInterval({ start, end });
 
-    // 전체 기간 지원자와 날짜별 그룹 분리
-    const fullRangeSupports = [];
-    const dailyGroups = {}; // 날짜별 그룹
-
+    // 유저별 그룹
+    const byUser = {};
     supports.forEach((s) => {
-      const d = parseISO(s.support_date);
-      const dayKey = format(d, "yyyy-MM-dd");
-      const userId = s.users?.id;
-      if (!userId) return;
+      const u = s.users;
+      if (!u) return;
+      if (!byUser[u.id]) byUser[u.id] = { user: u, dates: [] };
+      byUser[u.id].dates.push(s.support_date);
+    });
 
-      // 유저가 전체 기간 지원자인지 확인
-      const userDates = supports
-        .filter((x) => x.users?.id === userId)
-        .map((x) => parseISO(x.support_date).getTime());
+    const fullRangeSupports = [];
+    const partialRanges = []; // {start,end,users:[]}
 
-      const userMin = min(userDates.map((t) => new Date(t)));
-      const userMax = max(userDates.map((t) => new Date(t)));
+    Object.values(byUser).forEach(({ user, dates }) => {
+      const normalized = [...new Set(dates)].sort();
+      const dateObjs = normalized.map((d) => parseISO(d));
+      const userMin = min(dateObjs);
+      const userMax = max(dateObjs);
 
       const coversAll =
         isSameDay(userMin, start) &&
         isSameDay(userMax, end) &&
-        eventDays.every((d) => userDates.includes(d.getTime()));
+        eventDays.every((d) => normalized.includes(format(d, "yyyy-MM-dd")));
 
       if (coversAll) {
-        if (!fullRangeSupports.find((u) => u.users?.id === userId)) {
-          fullRangeSupports.push(s);
-        }
+        fullRangeSupports.push(user);
       } else {
-        if (!dailyGroups[dayKey]) dailyGroups[dayKey] = [];
-        if (!dailyGroups[dayKey].find((u) => u.users?.id === userId)) {
-          dailyGroups[dayKey].push(s);
+        // 날짜 범위로 압축
+        let rStart = dateObjs[0];
+        let prev = dateObjs[0];
+        for (let i = 1; i < dateObjs.length; i++) {
+          const curr = dateObjs[i];
+          if ((curr - prev) / (1000 * 60 * 60 * 24) === 1) {
+            prev = curr;
+          } else {
+            partialRanges.push({ start: rStart, end: prev, users: [user] });
+            rStart = curr;
+            prev = curr;
+          }
         }
+        partialRanges.push({ start: rStart, end: prev, users: [user] });
       }
+    });
+
+    // 같은 날짜 범위에 속한 사람 묶기
+    const mergedRanges = [];
+    partialRanges.forEach((r) => {
+      const key = `${format(r.start, "yyyy-MM-dd")}_${format(r.end, "yyyy-MM-dd")}`;
+      let block = mergedRanges.find((m) => m.key === key);
+      if (!block) {
+        block = { key, start: r.start, end: r.end, users: [] };
+        mergedRanges.push(block);
+      }
+      block.users.push(...r.users);
     });
 
     return (
@@ -150,11 +172,11 @@ export default function EventDetailModal({
         {/* 전체 기간 지원자 */}
         {fullRangeSupports.length > 0 && (
           <ul className="text-sm">
-            {sortByPositionAndName(fullRangeSupports).map((s, idx) => {
-              const u = s.users;
+            {sortByPositionAndName(fullRangeSupports.map((u) => ({ user: u }))).map((s, idx) => {
+              const u = s.user;
               return (
                 <li key={`full-${idx}`} className="text-gray-700">
-                  {u?.name || "-"} {u?.position ? `(${u.position})` : ""}{" "}
+                  {u?.name} {u?.position ? `(${u.position})` : ""}{" "}
                   {u?.department ? `[${u.department}]` : ""}
                 </li>
               );
@@ -162,20 +184,24 @@ export default function EventDetailModal({
           </ul>
         )}
 
-        {/* 날짜별 부분 지원자 */}
-        {Object.keys(dailyGroups)
-          .sort((a, b) => new Date(a) - new Date(b))
-          .map((day, gi) => (
-            <div key={gi}>
+        {/* 기간별 부분 지원자 */}
+        {mergedRanges
+          .sort((a, b) => a.start - b.start)
+          .map((r, idx) => (
+            <div key={idx}>
               <div className="font-semibold mt-2 mb-1 text-gray-900">
-                {fmtWithDay(day)}
+                {isSameDay(r.start, r.end)
+                  ? fmtWithDay(format(r.start, "yyyy-MM-dd"))
+                  : `${fmtWithDay(format(r.start, "yyyy-MM-dd"))} ~ ${fmtWithDay(
+                      format(r.end, "yyyy-MM-dd")
+                    )}`}
               </div>
               <ul className="text-sm">
-                {sortByPositionAndName(dailyGroups[day]).map((s, idx) => {
-                  const u = s.users;
+                {sortByPositionAndName(r.users.map((u) => ({ user: u }))).map((s, i) => {
+                  const u = s.user;
                   return (
-                    <li key={`partial-${gi}-${idx}`} className="text-gray-700">
-                      {u?.name || "-"} {u?.position ? `(${u.position})` : ""}{" "}
+                    <li key={i} className="text-gray-700">
+                      {u?.name} {u?.position ? `(${u.position})` : ""}{" "}
                       {u?.department ? `[${u.department}]` : ""}
                     </li>
                   );
