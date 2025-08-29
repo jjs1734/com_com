@@ -1,10 +1,10 @@
-// src/pages/EventUploadPage.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
-import * as XLSX from "xlsx";   // ✅ 엑셀 처리 라이브러리
+import * as XLSX from "xlsx";
+import { eachDayOfInterval, parseISO, formatISO } from "date-fns";
 
-// 부서 옵션 (행사를 직접 진행하는 4개 팀만)
+// 부서 옵션
 const DEPT_OPTIONS = [
   "MK팀",
   "제약 1팀", "제약 2팀",
@@ -15,7 +15,6 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
-  // 폼 (단일 등록)
   const [form, setForm] = useState({
     event_name: "",
     start_date: "",
@@ -30,19 +29,15 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
 
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null);
-
   const [users, setUsers] = useState([]);
   const [hist, setHist] = useState({ company: [], product: [], region: [], venue: [] });
 
   const [bulkData, setBulkData] = useState([]);
   const [fileName, setFileName] = useState("");
 
-  // ✅ 지원 인력 state
-  const [supportUser, setSupportUser] = useState("");
-  const [supportDate, setSupportDate] = useState("");
-  const [supports, setSupports] = useState([]); // { user_id, name, department, date }
+  // ✅ 지원 인력 state { user_id, name, partial, start_date, end_date, showDropdown }
+  const [supports, setSupports] = useState([]);
 
-  // 최초 로딩
   useEffect(() => {
     const run = async () => {
       try {
@@ -75,7 +70,7 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
     run();
   }, []);
 
-  // ✅ 부서별 담당자 후보
+  // 담당자 후보
   const hostCandidates = useMemo(() => {
     const dept = form.department;
     if (!dept) return [];
@@ -113,18 +108,27 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
     setForm((f) => ({ ...f, [name]: value }));
   };
 
-  // ✅ 엑셀 템플릿 다운로드
+  // 엑셀 템플릿
   const downloadTemplate = () => {
     const ws = XLSX.utils.aoa_to_sheet([
-      ["event_name", "start_date", "end_date", "department", "host", "company_name", "product_name", "region", "venue"],
-      ["예시 행사", "2025-01-01", "2025-01-02", "학회 1팀", "홍길동", "ABC제약", "항암제", "서울", "COEX"],
+      [
+        "event_name", "start_date", "end_date",
+        "department", "host", "company_name",
+        "product_name", "region", "venue",
+        "support_name", "support_start_date", "support_end_date"
+      ],
+      [
+        "예시 행사", "2025-01-01", "2025-01-03",
+        "학회 1팀", "홍길동", "ABC제약",
+        "항암제", "서울", "COEX",
+        "이몽룡", "2025-01-02", "2025-01-03"
+      ],
     ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "EventsTemplate");
     XLSX.writeFile(wb, "event_upload_template.xlsx");
   };
 
-  // ✅ 엑셀 파일 업로드
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -148,42 +152,25 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
     showToast("엑셀 업로드가 취소되었습니다.", "info");
   };
 
-  const toDateStr = (val) => {
-    if (!val) return null;
-    if (typeof val === "number") {
-      const d = XLSX.SSF.parse_date_code(val);
-      if (!d) return null;
-      const yyyy = d.y;
-      const mm = String(d.m).padStart(2, "0");
-      const dd = String(d.d).padStart(2, "0");
-      return `${yyyy}-${mm}-${dd}`;
-    }
-    return String(val);
-  };
-
-  // ✅ 지원 인력 추가/삭제
+  // 지원 인력 수동 추가
   const addSupport = () => {
-    if (!supportUser || !supportDate) {
-      showToast("지원자와 날짜를 선택하세요", "error");
-      return;
-    }
-    const u = users.find((x) => x.id === supportUser);
-    if (!u) return;
-    const exists = supports.find((s) => s.user_id === u.id && s.date === supportDate);
-    if (exists) {
-      showToast("이미 추가된 지원자/날짜입니다.", "error");
-      return;
-    }
-    setSupports([...supports, { user_id: u.id, name: u.name, department: u.department, date: supportDate }]);
-    setSupportUser("");
-    setSupportDate("");
+    setSupports((s) => [
+      ...s,
+      { user_id: "", name: "", partial: false, start_date: form.start_date, end_date: form.end_date, showDropdown: false }
+    ]);
   };
 
-  const removeSupport = (user_id, date) => {
-    setSupports(supports.filter((s) => !(s.user_id === user_id && s.date === date)));
+  const updateSupport = (idx, key, value) => {
+    setSupports((s) =>
+      s.map((item, i) => (i === idx ? { ...item, [key]: value } : item))
+    );
   };
 
-  // ✅ 등록
+  const removeSupport = (idx) => {
+    setSupports((s) => s.filter((_, i) => i !== idx));
+  };
+
+  // 등록
   const onSubmit = async (e) => {
     e.preventDefault();
     if (!user?.is_admin) {
@@ -195,13 +182,14 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
 
     try {
       if (bulkData.length > 0) {
-        // 📦 엑셀 업로드는 지원 인력 미지원
-        const payloads = bulkData.map((row) => {
+        // 📦 엑셀 업로드
+        for (const row of bulkData) {
           const hostUser = users.find((u) => u.name === row.host);
-          return {
+
+          const eventPayload = {
             event_name: row.event_name?.trim(),
-            start_date: toDateStr(row.start_date),
-            end_date: toDateStr(row.end_date),
+            start_date: row.start_date,
+            end_date: row.end_date,
             department: row.department,
             host: row.host,
             host_id: hostUser ? hostUser.id : null,
@@ -210,13 +198,45 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
             region: row.region || null,
             venue: row.venue || null,
           };
-        }).filter(p => p.event_name && p.start_date && p.end_date && p.department && p.host);
 
-        const { error } = await supabase.from("events").insert(payloads);
-        if (error) throw error;
+          const { data: newEvent, error: e1 } = await supabase
+            .from("events")
+            .insert(eventPayload)
+            .select("id")
+            .single();
+          if (e1) throw e1;
+
+          // 지원 인력 있으면 처리 (host/디자인팀 제외)
+          if (row.support_name) {
+            const supportUser = users.find(
+              (u) =>
+                u.name === row.support_name &&
+                u.name !== row.host &&
+                u.department !== "디자인팀"
+            );
+            if (supportUser) {
+              const start = row.support_start_date || row.start_date;
+              const end = row.support_end_date || row.end_date;
+              const dates = eachDayOfInterval({
+                start: parseISO(start),
+                end: parseISO(end),
+              });
+              const supportPayloads = dates.map((d) => ({
+                event_id: newEvent.id,
+                user_id: supportUser.id,
+                support_date: formatISO(d, { representation: "date" }),
+              }));
+              const { error: e2 } = await supabase
+                .from("event_supports")
+                .insert(supportPayloads);
+              if (e2) throw e2;
+            }
+          }
+        }
         if (typeof onCreated === "function") await onCreated();
-        showToast(`총 ${payloads.length}건 업로드 완료`, "success");
+        showToast(`총 ${bulkData.length}건 업로드 완료`, "success");
       } else {
+        // 단일 입력
         if (!requiredOk) {
           setMsg("필수 항목을 입력해 주세요.");
           return;
@@ -240,15 +260,36 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
           venue: form.venue || null,
         };
 
-        const { data: newEvent, error: e1 } = await supabase.from("events").insert(eventPayload).select("id").single();
+        const { data: newEvent, error: e1 } = await supabase
+          .from("events")
+          .insert(eventPayload)
+          .select("id")
+          .single();
         if (e1) throw e1;
 
-        if (supports.length > 0) {
-          const supportPayloads = supports.map((s) => ({
-            event_id: newEvent.id,
-            user_id: s.user_id,
-            support_date: s.date,
-          }));
+        // 지원 인력 저장 (host/디자인팀 제외)
+        let supportPayloads = [];
+        supports.forEach((s) => {
+          if (!s.user_id) return;
+          const u = users.find((uu) => uu.id === s.user_id);
+          if (!u || u.name === form.host || u.department === "디자인팀") return;
+
+          const start = s.partial ? s.start_date : form.start_date;
+          const end = s.partial ? s.end_date : form.end_date;
+          if (!start || !end) return;
+          const dates = eachDayOfInterval({
+            start: parseISO(start),
+            end: parseISO(end),
+          });
+          dates.forEach((d) => {
+            supportPayloads.push({
+              event_id: newEvent.id,
+              user_id: s.user_id,
+              support_date: formatISO(d, { representation: "date" }),
+            });
+          });
+        });
+        if (supportPayloads.length > 0) {
           const { error: e2 } = await supabase.from("event_supports").insert(supportPayloads);
           if (e2) throw e2;
         }
@@ -278,7 +319,7 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
           <p className="text-red-600 text-sm">권한이 없습니다. 관리자만 행사를 업로드할 수 있습니다.</p>
         ) : (
           <form onSubmit={onSubmit} className="bg-white rounded-xl border p-6 space-y-5">
-            {/* 📂 엑셀 업로드 */}
+            {/* 엑셀 업로드 */}
             <div className="flex items-center gap-4">
               <button type="button" onClick={downloadTemplate} className="px-3 py-2 rounded bg-blue-500 text-white hover:bg-blue-600 text-sm">
                 양식 다운로드
@@ -334,29 +375,98 @@ export default function EventUploadPage({ user, onCreated, showToast }) {
                   </div>
                 </div>
 
-                {/* 지원 인력 */}
+                {/* 지원 인력 수동 추가 */}
                 <div className="border rounded-lg p-4 bg-gray-50">
-                  <h3 className="text-sm font-medium mb-2">지원 인력 추가</h3>
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    <select value={supportUser} onChange={(e) => setSupportUser(e.target.value)} className="border px-2 py-1 rounded bg-white text-sm">
-                      <option value="">지원자 선택</option>
-                      {users.map((u) => (
-                        <option key={u.id} value={u.id}>{u.name} ({u.department})</option>
-                      ))}
-                    </select>
-                    <input type="date" value={supportDate} onChange={(e) => setSupportDate(e.target.value)} className="border px-2 py-1 rounded text-sm" min={form.start_date} max={form.end_date} />
-                    <button type="button" onClick={addSupport} className="px-3 py-1 rounded bg-blue-500 text-white text-sm">추가</button>
+                  <h3 className="text-sm font-medium mb-2">지원 인력</h3>
+                  <div className="space-y-2">
+                    {supports.map((s, idx) => {
+                      const filteredUsers = users.filter(
+                        (u) =>
+                          u.name !== form.host &&
+                          u.department !== "디자인팀" &&
+                          !supports.some((sp, i) => i !== idx && sp.user_id === u.id) &&
+                          u.name.includes(s.name || "")
+                      );
+                      return (
+                        <div key={idx} className="flex flex-col gap-2 border p-2 rounded relative">
+                          <div className="flex gap-2 relative">
+                            <input
+                              type="text"
+                              value={s.name}
+                              onChange={(e) => {
+                                updateSupport(idx, "name", e.target.value);
+                                updateSupport(idx, "showDropdown", true);
+                              }}
+                              onFocus={() => updateSupport(idx, "showDropdown", true)}
+                              className="flex-1 border rounded px-2 py-1 text-sm"
+                              placeholder="직원 이름 검색"
+                            />
+                            {s.showDropdown && filteredUsers.length > 0 && (
+                              <ul className="absolute top-9 left-0 w-full bg-white border rounded shadow z-10 max-h-40 overflow-y-auto text-sm">
+                                {filteredUsers.map((u) => (
+                                  <li
+                                    key={u.id}
+                                    onClick={() => {
+                                      updateSupport(idx, "user_id", u.id);
+                                      updateSupport(idx, "name", u.name);
+                                      updateSupport(idx, "showDropdown", false);
+                                    }}
+                                    className="px-2 py-1 hover:bg-blue-100 cursor-pointer"
+                                  >
+                                    {u.name} ({u.department}/{u.position})
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+
+                            <label className="flex items-center gap-1 text-xs text-gray-600">
+                              <input
+                                type="checkbox"
+                                checked={s.partial}
+                                onChange={(e) => updateSupport(idx, "partial", e.target.checked)}
+                              />
+                              부분 지원
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => removeSupport(idx)}
+                              className="px-2 py-1 rounded bg-red-500 text-white text-xs hover:bg-red-600"
+                            >
+                              삭제
+                            </button>
+                          </div>
+
+                          {s.partial && (
+                            <div className="flex gap-2">
+                              <input
+                                type="date"
+                                value={s.start_date || ""}
+                                onChange={(e) => updateSupport(idx, "start_date", e.target.value)}
+                                className="border rounded px-2 py-1 text-sm"
+                                min={form.start_date}
+                                max={form.end_date}
+                              />
+                              <input
+                                type="date"
+                                value={s.end_date || ""}
+                                onChange={(e) => updateSupport(idx, "end_date", e.target.value)}
+                                className="border rounded px-2 py-1 text-sm"
+                                min={form.start_date}
+                                max={form.end_date}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                  {supports.length > 0 && (
-                    <ul className="space-y-1 text-sm">
-                      {supports.map((s, idx) => (
-                        <li key={idx} className="flex justify-between items-center">
-                          <span>{s.name} [{s.department}] · {s.date}</span>
-                          <button type="button" onClick={() => removeSupport(s.user_id, s.date)} className="text-red-500 hover:underline text-xs">삭제</button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                  <button
+                    type="button"
+                    onClick={addSupport}
+                    className="mt-2 px-3 py-1 rounded bg-blue-500 text-white text-sm hover:bg-blue-600"
+                  >
+                    + 지원 인력 추가
+                  </button>
                 </div>
 
                 {/* 클라이언트 / 제품 */}

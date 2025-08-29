@@ -10,6 +10,31 @@ const DEPT_OPTIONS = [
   "학회 1팀", "학회 2팀"
 ];
 
+// 부서 정렬 우선순위
+const DEPT_ORDER = [
+  "대표이사",
+  "관리부",
+  "MK팀",
+  "제약 1팀",
+  "제약 2팀",
+  "학회 1팀",
+  "학회 2팀",
+  "디지털마케팅팀",
+  "디자인팀",
+];
+
+// 직급 정렬 우선순위
+const POSITION_ORDER = [
+  "대표이사",
+  "이사",
+  "부장",
+  "차장",
+  "과장",
+  "대리",
+  "주임",
+  "사원",
+];
+
 export default function EventEditPage({ user, onUpdated, showToast }) {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -21,28 +46,29 @@ export default function EventEditPage({ user, onUpdated, showToast }) {
   const [msg, setMsg] = useState("");
 
   // 지원 인력 상태
-  const [supports, setSupports] = useState([]); // { user_id, partial, start_date, end_date }
+  const [supports, setSupports] = useState([]); // { user_id, name, partial, start_date, end_date, showDropdown }
+
+  // 정렬 함수
+  const sortUsers = (list) =>
+    [...list].sort((a, b) => {
+      const deptA = DEPT_ORDER.indexOf(a.department);
+      const deptB = DEPT_ORDER.indexOf(b.department);
+      if (deptA !== deptB) return deptA - deptB;
+
+      const posA = POSITION_ORDER.indexOf(a.position);
+      const posB = POSITION_ORDER.indexOf(b.position);
+      if (posA !== posB) return posA - posB;
+
+      return a.name.localeCompare(b.name, "ko");
+    });
 
   // 기존 데이터 로드
   useEffect(() => {
     const run = async () => {
       try {
-        const { data: ev, error: e1 } = await supabase
-          .from("events")
-          .select("*")
-          .eq("id", id)
-          .single();
-        if (e1) throw e1;
-
-        const { data: u } = await supabase
-          .from("users")
-          .select("id,name,department,position");
-
-        const { data: evAll } = await supabase
-          .from("events")
-          .select("company_name,product_name,region,venue");
-
-        // 지원 인력 불러오기
+        const { data: ev } = await supabase.from("events").select("*").eq("id", id).single();
+        const { data: u } = await supabase.from("users").select("id,name,department,position");
+        const { data: evAll } = await supabase.from("events").select("company_name,product_name,region,venue");
         const { data: sp } = await supabase
           .from("event_supports")
           .select("id, user_id, support_date, users(name, department, position)")
@@ -64,7 +90,7 @@ export default function EventEditPage({ user, onUpdated, showToast }) {
           region: ev.region || "",
           venue: ev.venue || "",
         });
-        setUsers(u || []);
+        setUsers(sortUsers(u || []));
         setHist({
           company: uniq((evAll || []).map((x) => x.company_name)),
           product: uniq((evAll || []).map((x) => x.product_name)),
@@ -72,16 +98,17 @@ export default function EventEditPage({ user, onUpdated, showToast }) {
           venue: uniq((evAll || []).map((x) => x.venue)),
         });
 
-        // 기존 supports 복원 → 단순히 날짜별 row니까 하나로 합치기 어려워서 partial=true로 기본 복원
+        // 기존 supports 복원
         setSupports(
           (sp || []).map((s) => ({
             user_id: s.user_id,
-            name: s.users?.name,
+            name: s.users?.name || "",
             department: s.users?.department,
             position: s.users?.position,
             partial: true,
             start_date: s.support_date,
             end_date: s.support_date,
+            showDropdown: false,
           }))
         );
       } catch (err) {
@@ -106,10 +133,6 @@ export default function EventEditPage({ user, onUpdated, showToast }) {
   // 부서 변경 시 후보에 없는 담당자면 초기화
   useEffect(() => {
     if (!form) return;
-    if (!form.department) {
-      if (form.host) setForm((f) => ({ ...f, host: "" }));
-      return;
-    }
     if (form.host && !hostCandidates.includes(form.host)) {
       setForm((f) => ({ ...f, host: "" }));
     }
@@ -137,15 +160,13 @@ export default function EventEditPage({ user, onUpdated, showToast }) {
   const addSupport = () => {
     setSupports((s) => [
       ...s,
-      { user_id: "", partial: false, start_date: form.start_date, end_date: form.end_date }
+      { user_id: "", name: "", partial: false, start_date: form.start_date, end_date: form.end_date, showDropdown: false }
     ]);
   };
 
   const updateSupport = (idx, key, value) => {
     setSupports((s) =>
-      s.map((item, i) =>
-        i === idx ? { ...item, [key]: value } : item
-      )
+      s.map((item, i) => (i === idx ? { ...item, [key]: value } : item))
     );
   };
 
@@ -164,7 +185,6 @@ export default function EventEditPage({ user, onUpdated, showToast }) {
     if (invalidEnd) return setMsg("종료일은 시작일보다 빠를 수 없습니다.");
 
     try {
-      // host_id 매핑
       const hostUser = users.find((u) => u.name === form.host);
 
       const payload = {
@@ -183,22 +203,18 @@ export default function EventEditPage({ user, onUpdated, showToast }) {
       const { error } = await supabase.from("events").update(payload).eq("id", id);
       if (error) throw error;
 
-      // 지원 인력 갱신 (기존 삭제 후 다시 insert)
       await supabase.from("event_supports").delete().eq("event_id", id);
 
       let supportPayloads = [];
       supports.forEach((s) => {
         if (!s.user_id) return;
-
         const start = s.partial ? s.start_date : form.start_date;
         const end = s.partial ? s.end_date : form.end_date;
         if (!start || !end) return;
-
         const dates = eachDayOfInterval({
           start: parseISO(start),
           end: parseISO(end),
         });
-
         dates.forEach((d) => {
           supportPayloads.push({
             event_id: id,
@@ -209,14 +225,11 @@ export default function EventEditPage({ user, onUpdated, showToast }) {
       });
 
       if (supportPayloads.length > 0) {
-        const { error: spErr } = await supabase
-          .from("event_supports")
-          .insert(supportPayloads);
+        const { error: spErr } = await supabase.from("event_supports").insert(supportPayloads);
         if (spErr) throw spErr;
       }
 
       if (typeof onUpdated === "function") await onUpdated();
-
       showToast("수정되었습니다.", "success");
       setTimeout(() => navigate("/main", { replace: true }), 1500);
     } catch (err) {
@@ -230,174 +243,195 @@ export default function EventEditPage({ user, onUpdated, showToast }) {
       <div className="max-w-3xl mx-auto">
         <h1 className="text-xl font-semibold mb-4">행사 수정</h1>
 
-        {!user?.is_admin ? (
-          <p className="text-red-600 text-sm">권한이 없습니다. 관리자만 행사를 수정할 수 있습니다.</p>
-        ) : (
-          <form onSubmit={onSubmit} className="bg-white rounded-xl border p-6 space-y-5">
-            {/* 행사명 */}
+        <form onSubmit={onSubmit} className="bg-white rounded-xl border p-6 space-y-5">
+          {/* 행사명 */}
+          <div>
+            <label className="block text-sm mb-1">행사명 *</label>
+            <input
+              name="event_name"
+              value={form.event_name}
+              onChange={onChange}
+              className="w-full border rounded px-3 py-2"
+              required
+            />
+          </div>
+
+          {/* 기간 */}
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm mb-1">행사명 *</label>
+              <label className="block text-sm mb-1">시작일 *</label>
               <input
-                name="event_name"
-                value={form.event_name}
+                type="date"
+                name="start_date"
+                value={form.start_date}
                 onChange={onChange}
                 className="w-full border rounded px-3 py-2"
                 required
               />
             </div>
-
-            {/* 기간 */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm mb-1">시작일 *</label>
-                <input
-                  type="date"
-                  name="start_date"
-                  value={form.start_date}
-                  onChange={onChange}
-                  className="w-full border rounded px-3 py-2"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm mb-1">종료일 *</label>
-                <input
-                  type="date"
-                  name="end_date"
-                  value={form.end_date}
-                  onChange={onChange}
-                  className="w-full border rounded px-3 py-2"
-                  required
-                  min={form.start_date || undefined}
-                />
-                {invalidEnd && <p className="text-xs text-red-600">종료일은 시작일보다 빠를 수 없습니다.</p>}
-              </div>
-            </div>
-
-            {/* 부서 / 담당자 */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm mb-1">부서 *</label>
-                <select
-                  name="department"
-                  value={form.department}
-                  onChange={onChange}
-                  className="w-full border rounded px-3 py-2 bg-white"
-                  required
-                >
-                  <option value="">선택</option>
-                  {DEPT_OPTIONS.map((d) => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm mb-1">담당자 *</label>
-                <select
-                  name="host"
-                  value={form.host}
-                  onChange={onChange}
-                  className="w-full border rounded px-3 py-2 bg-white"
-                  required
-                  disabled={!form.department || hostCandidates.length === 0}
-                >
-                  <option value="">
-                    {!form.department ? "부서를 먼저 선택하세요" : "담당자 선택"}
-                  </option>
-                  {hostCandidates.map((n) => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* 클라이언트 / 제품 */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm mb-1">클라이언트</label>
-                <input
-                  name="company_name"
-                  value={form.company_name}
-                  onChange={onChange}
-                  className="w-full border rounded px-3 py-2"
-                  list="companyOptions"
-                />
-                <datalist id="companyOptions">
-                  {hist.company.map((v) => (
-                    <option key={v} value={v} />
-                  ))}
-                </datalist>
-              </div>
-              <div>
-                <label className="block text-sm mb-1">제품</label>
-                <input
-                  name="product_name"
-                  value={form.product_name}
-                  onChange={onChange}
-                  className="w-full border rounded px-3 py-2"
-                  list="productOptions"
-                />
-                <datalist id="productOptions">
-                  {hist.product.map((v) => (
-                    <option key={v} value={v} />
-                  ))}
-                </datalist>
-              </div>
-            </div>
-
-            {/* 지역 / 장소 */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm mb-1">지역</label>
-                <input
-                  name="region"
-                  value={form.region}
-                  onChange={onChange}
-                  className="w-full border rounded px-3 py-2"
-                  list="regionOptions"
-                />
-                <datalist id="regionOptions">
-                  {hist.region.map((v) => (
-                    <option key={v} value={v} />
-                  ))}
-                </datalist>
-              </div>
-              <div>
-                <label className="block text-sm mb-1">장소</label>
-                <input
-                  name="venue"
-                  value={form.venue}
-                  onChange={onChange}
-                  className="w-full border rounded px-3 py-2"
-                  list="venueOptions"
-                />
-                <datalist id="venueOptions">
-                  {hist.venue.map((v) => (
-                    <option key={v} value={v} />
-                  ))}
-                </datalist>
-              </div>
-            </div>
-
-            {/* 지원 인력 */}
             <div>
-              <label className="block text-sm mb-1">지원 인력</label>
-              <div className="space-y-2">
-                {supports.map((s, idx) => (
-                  <div key={idx} className="flex flex-col gap-2 border p-2 rounded">
-                    <div className="flex gap-2">
-                      <select
-                        value={String(s.user_id)}
-                        onChange={(e) => updateSupport(idx, "user_id", e.target.value)}
-                        className="flex-1 border rounded px-2 py-1 text-sm bg-white"
-                      >
-                        <option value="">직원 선택</option>
-                        {users.map((u) => (
-                          <option key={u.id} value={String(u.id)}>
-                            {u.name} ({u.department})
-                          </option>
-                        ))}
-                      </select>
+              <label className="block text-sm mb-1">종료일 *</label>
+              <input
+                type="date"
+                name="end_date"
+                value={form.end_date}
+                onChange={onChange}
+                className="w-full border rounded px-3 py-2"
+                required
+                min={form.start_date || undefined}
+              />
+            </div>
+          </div>
+
+          {/* 부서 / 담당자 */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm mb-1">부서 *</label>
+              <select
+                name="department"
+                value={form.department}
+                onChange={onChange}
+                className="w-full border rounded px-3 py-2 bg-white"
+                required
+              >
+                <option value="">선택</option>
+                {DEPT_OPTIONS.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm mb-1">담당자 *</label>
+              <select
+                name="host"
+                value={form.host}
+                onChange={onChange}
+                className="w-full border rounded px-3 py-2 bg-white"
+                required
+                disabled={!form.department || hostCandidates.length === 0}
+              >
+                <option value="">
+                  {!form.department ? "부서를 먼저 선택하세요" : "담당자 선택"}
+                </option>
+                {hostCandidates.map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* 클라이언트 / 제품 */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm mb-1">클라이언트</label>
+              <input
+                name="company_name"
+                value={form.company_name}
+                onChange={onChange}
+                className="w-full border rounded px-3 py-2"
+                list="companyOptions"
+              />
+              <datalist id="companyOptions">
+                {hist.company.map((v) => (
+                  <option key={v} value={v} />
+                ))}
+              </datalist>
+            </div>
+            <div>
+              <label className="block text-sm mb-1">제품</label>
+              <input
+                name="product_name"
+                value={form.product_name}
+                onChange={onChange}
+                className="w-full border rounded px-3 py-2"
+                list="productOptions"
+              />
+              <datalist id="productOptions">
+                {hist.product.map((v) => (
+                  <option key={v} value={v} />
+                ))}
+              </datalist>
+            </div>
+          </div>
+
+          {/* 지역 / 장소 */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm mb-1">지역</label>
+              <input
+                name="region"
+                value={form.region}
+                onChange={onChange}
+                className="w-full border rounded px-3 py-2"
+                list="regionOptions"
+              />
+              <datalist id="regionOptions">
+                {hist.region.map((v) => (
+                  <option key={v} value={v} />
+                ))}
+              </datalist>
+            </div>
+            <div>
+              <label className="block text-sm mb-1">장소</label>
+              <input
+                name="venue"
+                value={form.venue}
+                onChange={onChange}
+                className="w-full border rounded px-3 py-2"
+                list="venueOptions"
+              />
+              <datalist id="venueOptions">
+                {hist.venue.map((v) => (
+                  <option key={v} value={v} />
+                ))}
+              </datalist>
+            </div>
+          </div>
+
+          {/* 지원 인력 */}
+          <div>
+            <label className="block text-sm mb-1">지원 인력</label>
+            <div className="space-y-2">
+              {supports.map((s, idx) => {
+                const filteredUsers = users.filter(
+                  (u) =>
+                    u.name !== form.host &&
+                    u.department !== "디자인팀" &&
+                    !supports.some((sp, i) => i !== idx && sp.user_id === u.id) &&
+                    u.name.includes(s.name || "")
+                );
+                return (
+                  <div key={idx} className="flex flex-col gap-2 border p-2 rounded relative">
+                    <div className="flex gap-2 relative">
+                      <input
+                        type="text"
+                        value={s.name}
+                        onChange={(e) => {
+                          updateSupport(idx, "name", e.target.value);
+                          updateSupport(idx, "showDropdown", true);
+                        }}
+                        onFocus={() => updateSupport(idx, "showDropdown", true)}
+                        className="flex-1 border rounded px-2 py-1 text-sm"
+                        placeholder="직원 이름 검색"
+                      />
+                      {s.showDropdown && filteredUsers.length > 0 && (
+                        <ul className="absolute top-9 left-0 w-full bg-white border rounded shadow z-10 max-h-40 overflow-y-auto text-sm">
+                          {filteredUsers.map((u) => (
+                            <li
+                              key={u.id}
+                              onClick={() => {
+                                updateSupport(idx, "user_id", u.id);
+                                updateSupport(idx, "name", u.name);
+                                updateSupport(idx, "showDropdown", false);
+                              }}
+                              className="px-2 py-1 hover:bg-blue-100 cursor-pointer"
+                            >
+                              {u.name} ({u.department}/{u.position})
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+
                       <label className="flex items-center gap-1 text-xs text-gray-600">
                         <input
                           type="checkbox"
@@ -414,6 +448,7 @@ export default function EventEditPage({ user, onUpdated, showToast }) {
                         삭제
                       </button>
                     </div>
+
                     {s.partial && (
                       <div className="flex gap-2">
                         <input
@@ -421,47 +456,51 @@ export default function EventEditPage({ user, onUpdated, showToast }) {
                           value={s.start_date || ""}
                           onChange={(e) => updateSupport(idx, "start_date", e.target.value)}
                           className="border rounded px-2 py-1 text-sm"
+                          min={form.start_date}
+                          max={form.end_date}
                         />
                         <input
                           type="date"
                           value={s.end_date || ""}
                           onChange={(e) => updateSupport(idx, "end_date", e.target.value)}
                           className="border rounded px-2 py-1 text-sm"
+                          min={form.start_date}
+                          max={form.end_date}
                         />
                       </div>
                     )}
                   </div>
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={addSupport}
-                className="mt-2 px-3 py-1 rounded bg-blue-500 text-white text-sm hover:bg-blue-600"
-              >
-                + 지원 인력 추가
-              </button>
+                );
+              })}
             </div>
+            <button
+              type="button"
+              onClick={addSupport}
+              className="mt-2 px-3 py-1 rounded bg-blue-500 text-white text-sm hover:bg-blue-600"
+            >
+              + 지원 인력 추가
+            </button>
+          </div>
 
-            {msg && <p className="text-sm text-red-600">{msg}</p>}
+          {msg && <p className="text-sm text-red-600">{msg}</p>}
 
-            <div className="flex gap-3">
-              <button
-                type="submit"
-                disabled={!requiredOk || invalidEnd}
-                className="px-4 py-2 bg-black text-white rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                저장
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate(-1)}
-                className="px-4 py-2 border rounded"
-              >
-                취소
-              </button>
-            </div>
-          </form>
-        )}
+          <div className="flex gap-3">
+            <button
+              type="submit"
+              disabled={!requiredOk || invalidEnd}
+              className="px-4 py-2 bg-black text-white rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              저장
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="px-4 py-2 border rounded"
+            >
+              취소
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

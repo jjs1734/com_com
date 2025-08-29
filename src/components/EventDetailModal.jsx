@@ -1,4 +1,3 @@
-// src/components/EventDetailModal.jsx
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format, parseISO, eachDayOfInterval, isSameDay, min, max } from "date-fns";
@@ -111,25 +110,17 @@ export default function EventDetailModal({
     const end = parseISO(event.end_date);
     const eventDays = eachDayOfInterval({ start, end });
 
-    // 날짜별로 그룹화
-    const byDate = {};
-    for (const s of supports) {
-      const d = parseISO(s.support_date);
-      const key = format(d, "yyyy-MM-dd");
-      if (!byDate[key]) byDate[key] = [];
-      byDate[key].push(s);
-    }
-
-    // full range (모든 날짜 다 커버하는 지원자)
+    // 전체 기간 지원자와 날짜별 그룹 분리
     const fullRangeSupports = [];
-    const partialGroups = [];
+    const dailyGroups = {}; // 날짜별 그룹
 
     supports.forEach((s) => {
       const d = parseISO(s.support_date);
+      const dayKey = format(d, "yyyy-MM-dd");
       const userId = s.users?.id;
       if (!userId) return;
 
-      // 특정 유저가 모든 날 포함하는지 확인
+      // 유저가 전체 기간 지원자인지 확인
       const userDates = supports
         .filter((x) => x.users?.id === userId)
         .map((x) => parseISO(x.support_date).getTime());
@@ -147,20 +138,15 @@ export default function EventDetailModal({
           fullRangeSupports.push(s);
         }
       } else {
-        const key = `${format(userMin, "yyyy-MM-dd")}~${format(userMax, "yyyy-MM-dd")}`;
-        let group = partialGroups.find((g) => g.key === key);
-        if (!group) {
-          group = { key, start: userMin, end: userMax, list: [] };
-          partialGroups.push(group);
-        }
-        if (!group.list.find((u) => u.users?.id === userId)) {
-          group.list.push(s);
+        if (!dailyGroups[dayKey]) dailyGroups[dayKey] = [];
+        if (!dailyGroups[dayKey].find((u) => u.users?.id === userId)) {
+          dailyGroups[dayKey].push(s);
         }
       }
     });
 
     return (
-      <div className="space-y-2">
+      <div className="space-y-3">
         {/* 전체 기간 지원자 */}
         {fullRangeSupports.length > 0 && (
           <ul className="text-sm">
@@ -176,16 +162,16 @@ export default function EventDetailModal({
           </ul>
         )}
 
-        {/* 부분 지원자 그룹 */}
-        {partialGroups
-          .sort((a, b) => a.start - b.start) // ✅ 날짜 빠른 순으로 정렬
-          .map((g, gi) => (
+        {/* 날짜별 부분 지원자 */}
+        {Object.keys(dailyGroups)
+          .sort((a, b) => new Date(a) - new Date(b))
+          .map((day, gi) => (
             <div key={gi}>
               <div className="font-semibold mt-2 mb-1 text-gray-900">
-                {fmtWithDay(g.start)} ~ {isSameDay(g.start, g.end) ? "" : fmtWithDay(g.end)}
+                {fmtWithDay(day)}
               </div>
               <ul className="text-sm">
-                {sortByPositionAndName(g.list).map((s, idx) => {
+                {sortByPositionAndName(dailyGroups[day]).map((s, idx) => {
                   const u = s.users;
                   return (
                     <li key={`partial-${gi}-${idx}`} className="text-gray-700">
