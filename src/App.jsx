@@ -8,6 +8,7 @@ import MainPage from "./pages/MainPage";
 import DirectoryPage from "./pages/DirectoryPage";
 import EventUploadPage from "./pages/EventUploadPage";
 import EventEditPage from "./pages/EventEditPage";
+import EventStatsPage from "./pages/EventStatsPage";   // ✅ 추가
 import Layout from "./components/Layout";
 import Toast from "./components/Toast";
 
@@ -215,7 +216,7 @@ export default function App() {
         <Route
           path="/events/new"
           element={
-            isLoggedIn ? (
+            isLoggedIn && user?.is_admin ? (   // ✅ 관리자만 접근 가능
               <Layout
                 user={user}
                 onLogout={handleLogout}
@@ -225,10 +226,28 @@ export default function App() {
                 <EventUploadPage user={user} onCreated={fetchEvents} showToast={showToast} />
               </Layout>
             ) : (
-              <Navigate to="/" replace />
+              <Navigate to="/" replace />   // ✅ 비관리자는 메인으로
             )
           }
         />
+        <Route
+          path="/stats"
+          element={
+            isLoggedIn && user?.is_admin ? (   // ✅ 관리자만 접근 가능
+              <Layout
+                user={user}
+                onLogout={handleLogout}
+                sessionRemainingSec={remaining}
+                onExtendSession={extendSession}
+              >
+                <EventStatsPage />
+              </Layout>
+            ) : (
+              <Navigate to="/" replace />   // ✅ 비관리자는 메인으로
+            )
+          }
+        />
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 

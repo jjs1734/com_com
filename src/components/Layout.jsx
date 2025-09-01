@@ -2,7 +2,9 @@ import { Link, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { format, parseISO } from "date-fns";
+import { motion, AnimatePresence } from "framer-motion"; 
 import EventDetailModal from "./EventDetailModal";
+import ChangePasswordModal from "./ChangePasswordModal"; 
 
 export default function Layout({
   user,
@@ -22,11 +24,13 @@ export default function Layout({
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
 
-  const [tab, setTab] = useState("planned"); // planned | done
+  const [tab, setTab] = useState("planned"); 
   const [doneStart, setDoneStart] = useState(null);
   const [doneEnd, setDoneEnd] = useState(null);
 
-  // ✅ 기본 완료기간 = 올해
+  const [pwModalOpen, setPwModalOpen] = useState(false);
+  const [successMsg, setSuccessMsg] = useState("");
+
   useEffect(() => {
     const year = new Date().getFullYear();
     setDoneStart(new Date(`${year}-01-01`));
@@ -37,7 +41,10 @@ export default function Layout({
     { label: "행사 조회", path: "/main" },
     { label: "직원 명부", path: "/directory" },
   ];
-  if (user?.is_admin) navItems.push({ label: "행사 업로드", path: "/events/new" });
+  if (user?.is_admin) {
+    navItems.push({ label: "행사 업로드", path: "/events/new" });
+    navItems.push({ label: "통계", path: "/stats" }); // ✅ 추가
+  }
 
   const fmt = (sec) => {
     if (sec == null) return "-";
@@ -51,7 +58,6 @@ export default function Layout({
   const danger = sessionRemainingSec != null && sessionRemainingSec <= 600;
   const ASIDE_W = 320;
 
-  // ✅ online_users 실시간 구독
   useEffect(() => {
     fetchOnlineUsers();
     const channel = supabase
@@ -78,7 +84,6 @@ export default function Layout({
     setOnlineUsers(data || []);
   };
 
-  // ✅ 날짜 압축 (연속 → 범위, 띄엄띄엄 → 콤마)
   function compressDateRanges(dates) {
     if (!dates || dates.length === 0) return "";
     const sorted = dates.map((d) => parseISO(d)).sort((a, b) => a - b);
@@ -106,13 +111,11 @@ export default function Layout({
       .join(", ");
   }
 
-  // ✅ 내 일정 불러오기
   useEffect(() => {
     if (!user?.id) return;
     const today = new Date().toISOString().split("T")[0];
 
     const fetchData = async () => {
-      // 진행 예정 행사 / 완료 행사
       const { data: hostEv } = await supabase
         .from("events")
         .select("id, event_name, start_date, end_date, region, department, host, host_id")
@@ -122,7 +125,6 @@ export default function Layout({
       setHostEventsPlanned((hostEv || []).filter((e) => e.start_date >= today));
       setHostEventsDone((hostEv || []).filter((e) => e.end_date < today));
 
-      // 지원 예정 행사 / 완료 행사
       const { data: sp } = await supabase
         .from("event_supports")
         .select("support_date, events(id, event_name, start_date, end_date, region, department)")
@@ -167,7 +169,6 @@ export default function Layout({
     }
   };
 
-  // ✅ 완료 행사 기간 필터링
   const filteredHost = hostEventsDone.filter((ev) => {
     const end = new Date(ev.end_date);
     return (!doneStart || end >= doneStart) && (!doneEnd || end <= doneEnd);
@@ -177,14 +178,9 @@ export default function Layout({
     return (!doneStart || end >= doneStart) && (!doneEnd || end <= doneEnd);
   });
 
-  // ✅ 이벤트 클릭 → 상세 데이터 fetch 후 모달 열기
   const handleOpenEvent = async (ev) => {
     try {
-      const { data, error } = await supabase
-        .from("events")
-        .select("*")
-        .eq("id", ev.id)
-        .single();
+      const { data, error } = await supabase.from("events").select("*").eq("id", ev.id).single();
       if (error) throw error;
       setSelectedEvent(data);
       setModalOpen(true);
@@ -196,6 +192,21 @@ export default function Layout({
 
   return (
     <div className="min-h-screen bg-[#f7f7f7] py-6">
+      <AnimatePresence>
+        {successMsg && (
+          <motion.div
+            key="successMsg"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+            className="fixed top-6 left-1/2 -translate-x-1/2 bg-green-500 text-white font-medium px-6 py-3 rounded-xl shadow-lg z-[10000]"
+          >
+            {successMsg}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div
         className="w-full px-6 grid gap-x-6 gap-y-4"
         style={{ gridTemplateColumns: `1fr ${ASIDE_W}px`, gridTemplateRows: "auto 1fr" }}
@@ -235,7 +246,15 @@ export default function Layout({
             <h2 className="mb-2 text-lg font-medium text-gray-900">로그인 정보</h2>
             <p className="text-sm text-gray-700">성명: <strong>{user?.name}</strong></p>
             <p className="text-sm text-gray-700">직급: <strong>{user?.position || "-"}</strong></p>
-            <p className="mb-4 text-sm text-gray-700">부서: <strong>{user?.department || "-"}</strong></p>
+            <p className="mb-2 text-sm text-gray-700">부서: <strong>{user?.department || "-"}</strong></p>
+
+            <button
+              onClick={() => setPwModalOpen(true)}
+              className="w-full mb-2 rounded bg-gray-200 py-2 text-gray-800 hover:bg-gray-300 text-sm"
+            >
+              비밀번호 변경
+            </button>
+
             <button onClick={onLogout} className="w-full rounded bg-black py-2 text-white hover:bg-gray-800">
               로그아웃
             </button>
@@ -303,7 +322,6 @@ export default function Layout({
               </>
             ) : (
               <>
-                {/* 기간 선택 */}
                 <div className="flex items-center gap-2 mb-3">
                   <input
                     type="date"
@@ -397,6 +415,17 @@ export default function Layout({
           onRefresh={() => {}}
           showToast={showToast || (() => {})}
           user={user}
+        />
+      )}
+
+      {/* ✅ 비밀번호 변경 모달 */}
+      {pwModalOpen && (
+        <ChangePasswordModal
+          open={pwModalOpen}
+          onClose={() => setPwModalOpen(false)}
+          user={user}
+          setSuccessMsg={setSuccessMsg} // ✅ 성공 시 메시지 띄우기
+          onLogout={onLogout}         // ✅ 성공 시 로그아웃
         />
       )}
     </div>

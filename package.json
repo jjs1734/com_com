@@ -11,13 +11,16 @@
   },
   "dependencies": {
     "@popperjs/core": "^2.11.8",
+    "@radix-ui/react-alert-dialog": "^1.1.15",
     "@supabase/supabase-js": "^2.53.0",
     "bootstrap": "^5.3.7",
     "date-fns": "^4.1.0",
+    "framer-motion": "^12.23.12",
     "lucide-react": "^0.541.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.7.1",
+    "recharts": "^3.1.2",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

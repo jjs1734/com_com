@@ -98,19 +98,43 @@ export default function EventEditPage({ user, onUpdated, showToast }) {
           venue: uniq((evAll || []).map((x) => x.venue)),
         });
 
-        // 기존 supports 복원
-        setSupports(
-          (sp || []).map((s) => ({
-            user_id: s.user_id,
-            name: s.users?.name || "",
-            department: s.users?.department,
-            position: s.users?.position,
-            partial: true,
-            start_date: s.support_date,
-            end_date: s.support_date,
+        // ✅ 기존 supports 복원 (유저별 묶기)
+        const grouped = {};
+        (sp || []).forEach((s) => {
+          if (!grouped[s.user_id]) {
+            grouped[s.user_id] = {
+              user_id: s.user_id,
+              name: s.users?.name || "",
+              department: s.users?.department,
+              position: s.users?.position,
+              dates: [],
+            };
+          }
+          grouped[s.user_id].dates.push(s.support_date);
+        });
+
+        const eventDays = eachDayOfInterval({
+          start: parseISO(ev.start_date),
+          end: parseISO(ev.end_date),
+        }).map((d) => formatISO(d, { representation: "date" }));
+
+        const mergedSupports = Object.values(grouped).map((g) => {
+          const start = g.dates.reduce((a, b) => (a < b ? a : b));
+          const end = g.dates.reduce((a, b) => (a > b ? a : b));
+          const coversAll = eventDays.every((d) => g.dates.includes(d));
+          return {
+            user_id: g.user_id,
+            name: g.name,
+            department: g.department,
+            position: g.position,
+            partial: !coversAll,
+            start_date: start,
+            end_date: end,
             showDropdown: false,
-          }))
-        );
+          };
+        });
+
+        setSupports(mergedSupports);
       } catch (err) {
         console.error(err);
         setMsg("데이터 로드 중 오류 발생");
