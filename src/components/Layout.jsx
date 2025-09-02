@@ -46,10 +46,10 @@ export default function Layout({
   const navItems = [
     { label: "행사 조회", path: "/main" },
     { label: "직원 명부", path: "/directory" },
+    { label: "통계", path: "/stats" }
   ];
   if (user?.is_admin) {
     navItems.push({ label: "행사 업로드", path: "/events/new" });
-    navItems.push({ label: "통계", path: "/stats" }); 
   }
 
   const fmt = (sec) => {
@@ -133,6 +133,7 @@ export default function Layout({
     }
   };
 
+  // ✅ 접속자 관리
   useEffect(() => {
     fetchOnlineUsers();
     const channel = supabase
@@ -158,6 +159,32 @@ export default function Layout({
     const { data } = await supabase.from("online_users").select("user_id, name, department");
     setOnlineUsers(data || []);
   };
+
+  // ✅ 본인 접속 상태 등록 + 주기 갱신
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const upsertSelf = async () => {
+      try {
+        await supabase.from("online_users").upsert({
+          user_id: user.id,
+          name: user.name,
+          department: user.department,
+          position: user.position,
+          last_seen: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error("본인 접속자 upsert 실패:", err);
+      }
+    };
+
+    // 처음 마운트 시 등록
+    upsertSelf();
+
+    // 30초마다 상태 갱신
+    const interval = setInterval(upsertSelf, 30000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   function compressDateRanges(dates) {
     if (!dates || dates.length === 0) return "";
