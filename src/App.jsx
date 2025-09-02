@@ -255,7 +255,7 @@ export default function App() {
         <Route
           path="/stats"
           element={
-            isLoggedIn && user?.is_admin ? (
+            isLoggedIn ? (
               <Layout
                 user={user}
                 setUser={setUser}
