@@ -1,4 +1,3 @@
-// src/components/ChangePasswordModal.jsx
 import { useState } from "react";
 import { supabase } from "../supabaseClient";
 
@@ -32,7 +31,10 @@ export default function ChangePasswordModal({ open, onClose, user, onSuccess }) 
 
     // 새 비밀번호 확인 불일치
     if (newPw !== confirmPw) {
-      setErrorMsg((prev) => ({ ...prev, confirm: "새 비밀번호가 일치하지 않습니다." }));
+      setErrorMsg((prev) => ({
+        ...prev,
+        confirm: "새 비밀번호가 일치하지 않습니다.",
+      }));
       return;
     }
 
@@ -48,7 +50,10 @@ export default function ChangePasswordModal({ open, onClose, user, onSuccess }) 
 
       // false → 현재 비밀번호 틀림
       if (data !== true) {
-        setErrorMsg((prev) => ({ ...prev, old: "현재 비밀번호가 일치하지 않습니다." }));
+        setErrorMsg((prev) => ({
+          ...prev,
+          old: "현재 비밀번호가 일치하지 않습니다.",
+        }));
         return;
       }
 
@@ -69,6 +74,10 @@ export default function ChangePasswordModal({ open, onClose, user, onSuccess }) 
     }
   };
 
+  // ✅ 입력 필터: 공백 제거 + 한글 차단
+  const filterInput = (val) =>
+    val.replace(/\s/g, "").replace(/[^a-zA-Z0-9!@#$%^&*]/g, "");
+
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-lg shadow-lg w-full max-w-sm p-6 relative">
@@ -82,13 +91,18 @@ export default function ChangePasswordModal({ open, onClose, user, onSuccess }) 
               type="password"
               value={oldPw}
               onChange={(e) => {
-                setOldPw(e.target.value);
+                setOldPw(filterInput(e.target.value));
                 setErrorMsg((prev) => ({ ...prev, old: "" }));
+              }}
+              onKeyDown={(e) => {
+                if (e.key === " ") e.preventDefault();
               }}
               className="w-full border rounded px-3 py-2"
               required
             />
-            {errorMsg.old && <p className="text-xs text-red-600 mt-1">{errorMsg.old}</p>}
+            {errorMsg.old && (
+              <p className="text-xs text-red-600 mt-1">{errorMsg.old}</p>
+            )}
           </div>
 
           {/* 새 비밀번호 */}
@@ -98,13 +112,18 @@ export default function ChangePasswordModal({ open, onClose, user, onSuccess }) 
               type="password"
               value={newPw}
               onChange={(e) => {
-                setNewPw(e.target.value);
+                setNewPw(filterInput(e.target.value));
                 setErrorMsg((prev) => ({ ...prev, new: "" }));
+              }}
+              onKeyDown={(e) => {
+                if (e.key === " ") e.preventDefault();
               }}
               className="w-full border rounded px-3 py-2"
               required
             />
-            {errorMsg.new && <p className="text-xs text-red-600 mt-1">{errorMsg.new}</p>}
+            {errorMsg.new && (
+              <p className="text-xs text-red-600 mt-1">{errorMsg.new}</p>
+            )}
           </div>
 
           {/* 새 비밀번호 확인 */}
@@ -114,13 +133,18 @@ export default function ChangePasswordModal({ open, onClose, user, onSuccess }) 
               type="password"
               value={confirmPw}
               onChange={(e) => {
-                setConfirmPw(e.target.value);
+                setConfirmPw(filterInput(e.target.value));
                 setErrorMsg((prev) => ({ ...prev, confirm: "" }));
+              }}
+              onKeyDown={(e) => {
+                if (e.key === " ") e.preventDefault();
               }}
               className="w-full border rounded px-3 py-2"
               required
             />
-            {errorMsg.confirm && <p className="text-xs text-red-600 mt-1">{errorMsg.confirm}</p>}
+            {errorMsg.confirm && (
+              <p className="text-xs text-red-600 mt-1">{errorMsg.confirm}</p>
+            )}
           </div>
 
           {/* 일반 오류 */}

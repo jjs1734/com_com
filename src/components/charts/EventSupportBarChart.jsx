@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -20,9 +20,12 @@ const DEPT_COLORS = {
 export default function EventSupportBarChart({ data, onSelect }) {
   const [showAll, setShowAll] = useState(false);
 
-  // ✅ 행사 지원 횟수 내림차순 정렬 후 Top 10 추출
-  const sortedData = [...data].sort((a, b) => b.total - a.total);
-  const topData = sortedData.slice(0, 10);
+  const sortedData = useMemo(
+    () => [...data].sort((a, b) => b.total - a.total),
+    [data]
+  );
+
+  const topData = useMemo(() => sortedData.slice(0, 10), [sortedData]);
 
   return (
     <div className="bg-white shadow rounded-2xl p-4">
@@ -37,7 +40,6 @@ export default function EventSupportBarChart({ data, onSelect }) {
       </div>
 
       {!showAll ? (
-        // ✅ Top 10 바 차트
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={topData} layout="vertical" margin={{ left: 50 }}>
             <CartesianGrid strokeDasharray="3 3" />
@@ -47,6 +49,7 @@ export default function EventSupportBarChart({ data, onSelect }) {
             <Bar
               dataKey="total"
               radius={[0, 6, 6, 0]}
+              isAnimationActive={false}
               onClick={(data) => onSelect && onSelect(data)}
             >
               {topData.map((entry, index) => (
@@ -59,7 +62,6 @@ export default function EventSupportBarChart({ data, onSelect }) {
           </BarChart>
         </ResponsiveContainer>
       ) : (
-        // ✅ 전체 보기 → 표
         <div className="h-[300px] overflow-y-auto border rounded">
           <table className="w-full text-sm border-collapse">
             <thead>

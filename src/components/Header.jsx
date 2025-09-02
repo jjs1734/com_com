@@ -18,15 +18,15 @@ export default function Header({ user }) {
         <Link to="/directory" className={linkClass('/directory')}>
           직원 명부
         </Link>
+        <Link to="/stats" className={linkClass('/stats')}>
+          통계
+        </Link>
 
         {/* ✅ 관리자만 보이는 메뉴 */}
         {user?.is_admin && (
           <>
             <Link to="/events/new" className={linkClass('/events/new')}>
               행사 업로드
-            </Link>
-            <Link to="/stats" className={linkClass('/stats')}>
-              통계
             </Link>
           </>
         )}

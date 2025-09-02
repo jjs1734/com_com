@@ -124,7 +124,9 @@ export default function EventStatsPage() {
   const fetchSupportStats = async () => {
     let { data } = await supabase
       .from("event_supports")
-      .select("user_id, event_id, users(id, name, department), events(id, event_name, start_date, end_date, department, host, venue)")
+      .select(
+        "user_id, event_id, users(id, name, department), events(id, event_name, start_date, end_date, department, host, venue)"
+      )
       .gte("support_date", startDate)
       .lte("support_date", endDate);
 
@@ -143,14 +145,21 @@ export default function EventStatsPage() {
       userEventSet.add(key);
 
       if (!userCount[u.id]) {
-        userCount[u.id] = { id: u.id, name: u.name, department: u.department, total: 0 };
+        userCount[u.id] = {
+          id: u.id,
+          name: u.name,
+          department: u.department,
+          total: 0,
+        };
         supportEvents[u.id] = [];
       }
       userCount[u.id].total += 1;
       if (row.events) supportEvents[u.id].push(row.events);
     });
 
-    const sortedUsers = Object.values(userCount).sort((a, b) => b.total - a.total);
+    const sortedUsers = Object.values(userCount).sort(
+      (a, b) => b.total - a.total
+    );
     setSupportStats(sortedUsers);
 
     // ✅ 캐시에 저장
@@ -162,19 +171,36 @@ export default function EventStatsPage() {
     if (!selectedDetail) return;
 
     if (selectedDetail.type === "support") {
-      const events = (supportEventsCache.current[selectedDetail.value.id] || []).sort(
-        (a, b) => new Date(a.start_date) - new Date(b.start_date)
-      );
+      const events = (supportEventsCache.current[selectedDetail.value.id] || [])
+        .sort((a, b) => {
+          if (a.start_date === b.start_date) {
+            return new Date(a.end_date) - new Date(b.end_date);
+          }
+          return new Date(a.start_date) - new Date(b.start_date);
+        });
       setDetailEvents(events);
     } else {
       let filtered = [...allEventsCache.current];
       if (selectedDetail.type === "department") {
-        filtered = filtered.filter((e) => e.department === selectedDetail.value);
+        filtered = filtered.filter(
+          (e) => e.department === selectedDetail.value
+        );
       } else if (selectedDetail.type === "host") {
         filtered = filtered.filter((e) => e.host === selectedDetail.value);
       } else if (selectedDetail.type === "month") {
-        filtered = filtered.filter((e) => e.start_date.startsWith(selectedDetail.value));
+        filtered = filtered.filter((e) =>
+          e.start_date.startsWith(selectedDetail.value)
+        );
       }
+
+      // ✅ 정렬 추가 (시작일 → 종료일 순)
+      filtered.sort((a, b) => {
+        if (a.start_date === b.start_date) {
+          return new Date(a.end_date) - new Date(b.end_date);
+        }
+        return new Date(a.start_date) - new Date(b.start_date);
+      });
+
       setDetailEvents(filtered);
     }
   }, [selectedDetail]);
@@ -230,19 +256,27 @@ export default function EventStatsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <DeptEventBarChart
           data={deptStats}
-          onSelect={(filter) => setSelectedDetail({ type: "department", value: filter.value })}
+          onSelect={(filter) =>
+            setSelectedDetail({ type: "department", value: filter.value })
+          }
         />
         <MonthlyEventLineChart
           data={monthlyStats}
-          onSelect={(filter) => setSelectedDetail({ type: "month", value: filter.value })}
+          onSelect={(filter) =>
+            setSelectedDetail({ type: "month", value: filter.value })
+          }
         />
         <HostEventBarChart
           data={hostStats}
-          onSelect={(filter) => setSelectedDetail({ type: "host", value: filter.value })}
+          onSelect={(filter) =>
+            setSelectedDetail({ type: "host", value: filter.value })
+          }
         />
         <EventSupportBarChart
           data={supportStats}
-          onSelect={(user) => setSelectedDetail({ type: "support", value: user })}
+          onSelect={(user) =>
+            setSelectedDetail({ type: "support", value: user })
+          }
         />
       </div>
 
@@ -280,23 +314,37 @@ export default function EventStatsPage() {
                 </tr>
               </thead>
               <tbody>
-                {detailEvents.map((ev) => (
-                  <tr key={ev.id} className="border-b hover:bg-gray-50">
-                    <td className="px-3 py-2">{ev.event_name}</td>
-                    <td className="px-3 py-2">{ev.start_date}</td>
-                    <td className="px-3 py-2">{ev.end_date}</td>
-                    <td className="px-3 py-2">{ev.host}</td>
-                    <td className="px-3 py-2">
-                      <span
-                        className="px-2 py-1 rounded text-white text-xs"
-                        style={{ backgroundColor: DEPT_COLORS[ev.department] || "#6b7280" }}
-                      >
-                        {ev.department}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2">{ev.venue}</td>
-                  </tr>
-                ))}
+                {detailEvents.map((ev) => {
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const isPast = new Date(ev.end_date) < today;
+
+                  return (
+                    <tr
+                      key={ev.id}
+                      className={`border-b hover:bg-gray-50 ${
+                        isPast ? "bg-gray-100 text-gray-600" : "bg-white"
+                      }`}
+                    >
+                      <td className="px-3 py-2">{ev.event_name}</td>
+                      <td className="px-3 py-2">{ev.start_date}</td>
+                      <td className="px-3 py-2">{ev.end_date}</td>
+                      <td className="px-3 py-2">{ev.host}</td>
+                      <td className="px-3 py-2">
+                        <span
+                          className="px-2 py-1 rounded text-white text-xs"
+                          style={{
+                            backgroundColor:
+                              DEPT_COLORS[ev.department] || "#6b7280",
+                          }}
+                        >
+                          {ev.department}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">{ev.venue}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}

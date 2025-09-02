@@ -114,6 +114,7 @@ export default function App() {
         user_id: u.id,
         name: u.name,
         department: u.department,
+        position: u.position,
         last_seen: new Date().toISOString(),
       });
     } catch (err) {
@@ -150,6 +151,7 @@ export default function App() {
         user_id: user.id,
         name: user.name,
         department: user.department,
+        position: user.position,
         last_seen: new Date().toISOString(),
       });
     }
@@ -168,9 +170,11 @@ export default function App() {
             isLoggedIn ? (
               <Layout
                 user={user}
+                setUser={setUser}  // ✅ 추가
                 onLogout={handleLogout}
                 sessionRemainingSec={remaining}
                 onExtendSession={extendSession}
+                showToast={showToast}
               >
                 <MainPage user={user} events={events} onRefresh={fetchEvents} showToast={showToast} />
               </Layout>
@@ -185,9 +189,11 @@ export default function App() {
             isLoggedIn ? (
               <Layout
                 user={user}
+                setUser={setUser}  // ✅ 추가
                 onLogout={handleLogout}
                 sessionRemainingSec={remaining}
                 onExtendSession={extendSession}
+                showToast={showToast}
               >
                 <DirectoryPage />
               </Layout>
@@ -202,9 +208,11 @@ export default function App() {
             isLoggedIn ? (
               <Layout
                 user={user}
+                setUser={setUser}  // ✅ 추가
                 onLogout={handleLogout}
                 sessionRemainingSec={remaining}
                 onExtendSession={extendSession}
+                showToast={showToast}
               >
                 <EventEditPage user={user} onUpdated={fetchEvents} showToast={showToast} />
               </Layout>
@@ -216,34 +224,38 @@ export default function App() {
         <Route
           path="/events/new"
           element={
-            isLoggedIn && user?.is_admin ? (   // ✅ 관리자만 접근 가능
+            isLoggedIn && user?.is_admin ? (
               <Layout
                 user={user}
+                setUser={setUser}  // ✅ 추가
                 onLogout={handleLogout}
                 sessionRemainingSec={remaining}
                 onExtendSession={extendSession}
+                showToast={showToast}
               >
                 <EventUploadPage user={user} onCreated={fetchEvents} showToast={showToast} />
               </Layout>
             ) : (
-              <Navigate to="/" replace />   // ✅ 비관리자는 메인으로
+              <Navigate to="/" replace />
             )
           }
         />
         <Route
           path="/stats"
           element={
-            isLoggedIn && user?.is_admin ? (   // ✅ 관리자만 접근 가능
+            isLoggedIn && user?.is_admin ? (
               <Layout
                 user={user}
+                setUser={setUser}  // ✅ 추가
                 onLogout={handleLogout}
                 sessionRemainingSec={remaining}
                 onExtendSession={extendSession}
+                showToast={showToast}
               >
                 <EventStatsPage />
               </Layout>
             ) : (
-              <Navigate to="/" replace />   // ✅ 비관리자는 메인으로
+              <Navigate to="/" replace />
             )
           }
         />

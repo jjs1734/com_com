@@ -1,5 +1,6 @@
+// src/components/Layout.jsx
 import { Link, useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "../supabaseClient";
 import { format, parseISO } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion"; 
@@ -8,6 +9,7 @@ import ChangePasswordModal from "./ChangePasswordModal";
 
 export default function Layout({
   user,
+  setUser, // ✅ 부모(App 등)에서 내려줘야 함
   onLogout,
   children,
   sessionRemainingSec,
@@ -31,6 +33,10 @@ export default function Layout({
   const [pwModalOpen, setPwModalOpen] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
 
+  // ✅ 프로필 관련 상태
+  const [profileUrl, setProfileUrl] = useState("");
+  const fileInputRef = useRef(null);
+
   useEffect(() => {
     const year = new Date().getFullYear();
     setDoneStart(new Date(`${year}-01-01`));
@@ -43,7 +49,7 @@ export default function Layout({
   ];
   if (user?.is_admin) {
     navItems.push({ label: "행사 업로드", path: "/events/new" });
-    navItems.push({ label: "통계", path: "/stats" }); // ✅ 추가
+    navItems.push({ label: "통계", path: "/stats" }); 
   }
 
   const fmt = (sec) => {
@@ -57,6 +63,75 @@ export default function Layout({
   };
   const danger = sessionRemainingSec != null && sessionRemainingSec <= 600;
   const ASIDE_W = 320;
+
+  // ✅ 프로필 이미지 불러오기
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!user?.profile_image) {
+        const { data } = supabase.storage.from("profile-images").getPublicUrl("default-avatar.png");
+        setProfileUrl(data.publicUrl);
+      } else {
+        const { data } = supabase.storage.from("profile-images").getPublicUrl(user.profile_image);
+        setProfileUrl(data.publicUrl);
+      }
+    };
+    loadProfile();
+  }, [user?.profile_image]);
+
+  // ✅ 프로필 업로드 처리
+  const handleProfileUpload = async (e) => {
+    try {
+      const file = e.target.files[0];
+      if (!file || !user?.id) return;
+
+      const oldPath = user.profile_image; // 기존 이미지 경로 저장
+
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+      const filePath = fileName;
+
+      // 1. 파일 업로드
+      const { error: uploadError } = await supabase.storage
+        .from("profile-images")
+        .upload(filePath, file, { cacheControl: "3600", upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // 2. DB 업데이트
+      const { error: dbError } = await supabase
+        .from("users")
+        .update({ profile_image: filePath })
+        .eq("id", user.id);
+
+      if (dbError) throw dbError;
+
+      // 3. 기존 파일 삭제 (기본 아바타 제외)
+      if (oldPath && oldPath !== "default-avatar.png") {
+        await supabase.storage.from("profile-images").remove([oldPath]);
+      }
+
+      // 4. 최신 사용자 정보 다시 불러오기
+      const { data: refreshedUser } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+      if (refreshedUser) {
+        setUser(refreshedUser);
+        // LocalStorage도 갱신
+        localStorage.setItem("app_user", JSON.stringify(refreshedUser));
+      }
+
+      // 5. 새 URL 반영
+      const { data } = supabase.storage.from("profile-images").getPublicUrl(filePath);
+      setProfileUrl(data.publicUrl);
+
+      showToast("프로필 사진이 변경되었습니다.", "success", 3000);
+    } catch (err) {
+      console.error("프로필 업로드 실패:", err);
+      showToast("프로필 사진 업로드 실패", "error", 3000);
+    }
+  };
 
   useEffect(() => {
     fetchOnlineUsers();
@@ -243,21 +318,53 @@ export default function Layout({
                 연장
               </button>
             </div>
-            <h2 className="mb-2 text-lg font-medium text-gray-900">로그인 정보</h2>
-            <p className="text-sm text-gray-700">성명: <strong>{user?.name}</strong></p>
-            <p className="text-sm text-gray-700">직급: <strong>{user?.position || "-"}</strong></p>
-            <p className="mb-2 text-sm text-gray-700">부서: <strong>{user?.department || "-"}</strong></p>
+            <h2 className="mb-4 text-lg font-medium text-gray-900">로그인 정보</h2>
 
-            <button
-              onClick={() => setPwModalOpen(true)}
-              className="w-full mb-2 rounded bg-gray-200 py-2 text-gray-800 hover:bg-gray-300 text-sm"
-            >
-              비밀번호 변경
-            </button>
+            {/* ✅ 프로필 블록 */}
+            <div className="flex items-center gap-6 mb-4">
+              <div className="flex flex-col items-center">
+                <img
+                  src={profileUrl}
+                  alt="프로필"
+                  className="w-24 h-32 rounded-md object-cover shadow-md"
+                />
+                <button
+                  onClick={() => fileInputRef.current.click()}
+                  className="mt-2 text-xs text-blue-600 hover:underline"
+                >
+                  사진 변경
+                </button>
+                <input
+                  type="file"
+                  accept="image/*"
+                  ref={fileInputRef}
+                  className="hidden"
+                  onChange={handleProfileUpload}
+                />
+              </div>
 
-            <button onClick={onLogout} className="w-full rounded bg-black py-2 text-white hover:bg-gray-800">
-              로그아웃
-            </button>
+              <div className="flex flex-col justify-center">
+                <p className="text-base font-semibold text-gray-900">{user?.name}</p>
+                <p className="text-sm text-gray-600">직급: {user?.position || "-"}</p>
+                <p className="text-sm text-gray-600">부서: {user?.department || "-"}</p>
+              </div>
+            </div>
+
+            {/* 버튼 영역 */}
+            <div className="space-y-2">
+              <button
+                onClick={() => setPwModalOpen(true)}
+                className="w-full rounded bg-gray-100 py-2 text-gray-800 hover:bg-gray-200 text-sm"
+              >
+                비밀번호 변경
+              </button>
+              <button
+                onClick={onLogout}
+                className="w-full rounded bg-black py-2 text-white hover:bg-gray-800"
+              >
+                로그아웃
+              </button>
+            </div>
           </div>
 
           {/* 내 일정 */}
@@ -424,8 +531,8 @@ export default function Layout({
           open={pwModalOpen}
           onClose={() => setPwModalOpen(false)}
           user={user}
-          setSuccessMsg={setSuccessMsg} // ✅ 성공 시 메시지 띄우기
-          onLogout={onLogout}         // ✅ 성공 시 로그아웃
+          setSuccessMsg={setSuccessMsg}
+          onLogout={onLogout}
         />
       )}
     </div>

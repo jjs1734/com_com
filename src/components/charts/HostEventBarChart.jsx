@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -20,8 +20,12 @@ const DEPT_COLORS = {
 export default function HostEventBarChart({ data, onSelect }) {
   const [showAll, setShowAll] = useState(false);
 
-  const sortedData = [...data].sort((a, b) => b.total - a.total);
-  const topData = sortedData.slice(0, 10);
+  const sortedData = useMemo(
+    () => [...data].sort((a, b) => b.total - a.total),
+    [data]
+  );
+
+  const topData = useMemo(() => sortedData.slice(0, 10), [sortedData]);
 
   return (
     <div className="bg-white shadow rounded-2xl p-4">
@@ -45,7 +49,10 @@ export default function HostEventBarChart({ data, onSelect }) {
             <Bar
               dataKey="total"
               radius={[0, 6, 6, 0]}
-              onClick={(data) => onSelect && onSelect({ type: "host", value: data.host })}
+              isAnimationActive={false}
+              onClick={(data) =>
+                onSelect && onSelect({ type: "host", value: data.host })
+              }
             >
               {topData.map((entry, index) => (
                 <Cell
@@ -71,7 +78,9 @@ export default function HostEventBarChart({ data, onSelect }) {
                 <tr
                   key={idx}
                   className="border-b hover:bg-gray-50 cursor-pointer"
-                  onClick={() => onSelect && onSelect({ type: "host", value: h.host })}
+                  onClick={() =>
+                    onSelect && onSelect({ type: "host", value: h.host })
+                  }
                 >
                   <td className="px-3 py-2">{h.host}</td>
                   <td className="px-3 py-2">
