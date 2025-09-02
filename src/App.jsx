@@ -102,23 +102,35 @@ export default function App() {
 
   // 로그인
   const handleLogin = async (u) => {
-    const newExp = Date.now() + SESSION_MS;
-    setUser(u);
-    setExp(newExp);
-    localStorage.setItem("app_user", JSON.stringify(u));
-    localStorage.setItem("app_session_exp", String(newExp));
-
-    // ✅ online_users 등록/갱신
     try {
+      // ✅ DB에서 최신 사용자 정보 다시 불러오기 (profile_image 포함)
+      const { data: fullUser, error } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", u.id)
+        .single();
+
+      if (error) {
+        console.error("사용자 정보 불러오기 실패:", error);
+        return;
+      }
+
+      const newExp = Date.now() + SESSION_MS;
+      setUser(fullUser);
+      setExp(newExp);
+      localStorage.setItem("app_user", JSON.stringify(fullUser));
+      localStorage.setItem("app_session_exp", String(newExp));
+
+      // ✅ online_users 등록/갱신
       await supabase.from("online_users").upsert({
-        user_id: u.id,
-        name: u.name,
-        department: u.department,
-        position: u.position,
+        user_id: fullUser.id,
+        name: fullUser.name,
+        department: fullUser.department,
+        position: fullUser.position,
         last_seen: new Date().toISOString(),
       });
     } catch (err) {
-      console.error("online_users upsert 실패:", err);
+      console.error("handleLogin 오류:", err);
     }
   };
 
@@ -170,7 +182,7 @@ export default function App() {
             isLoggedIn ? (
               <Layout
                 user={user}
-                setUser={setUser}  // ✅ 추가
+                setUser={setUser}  // ✅ Layout에도 전달
                 onLogout={handleLogout}
                 sessionRemainingSec={remaining}
                 onExtendSession={extendSession}
@@ -189,7 +201,7 @@ export default function App() {
             isLoggedIn ? (
               <Layout
                 user={user}
-                setUser={setUser}  // ✅ 추가
+                setUser={setUser}
                 onLogout={handleLogout}
                 sessionRemainingSec={remaining}
                 onExtendSession={extendSession}
@@ -208,7 +220,7 @@ export default function App() {
             isLoggedIn ? (
               <Layout
                 user={user}
-                setUser={setUser}  // ✅ 추가
+                setUser={setUser}
                 onLogout={handleLogout}
                 sessionRemainingSec={remaining}
                 onExtendSession={extendSession}
@@ -227,7 +239,7 @@ export default function App() {
             isLoggedIn && user?.is_admin ? (
               <Layout
                 user={user}
-                setUser={setUser}  // ✅ 추가
+                setUser={setUser}
                 onLogout={handleLogout}
                 sessionRemainingSec={remaining}
                 onExtendSession={extendSession}
@@ -246,7 +258,7 @@ export default function App() {
             isLoggedIn && user?.is_admin ? (
               <Layout
                 user={user}
-                setUser={setUser}  // ✅ 추가
+                setUser={setUser}
                 onLogout={handleLogout}
                 sessionRemainingSec={remaining}
                 onExtendSession={extendSession}
