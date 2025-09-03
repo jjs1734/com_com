@@ -46,10 +46,13 @@ export default function Layout({
   const navItems = [
     { label: "행사 조회", path: "/main" },
     { label: "직원 명부", path: "/directory" },
-    { label: "통계", path: "/stats" }
+    { label: "통계", path: "/stats" },
+    { label: "내 휴가", path: "/my-vacation" },
+    { label: "휴일근무수당", path: "/expense" }
   ];
   if (user?.is_admin) {
-    navItems.push({ label: "행사 업로드", path: "/events/new" });
+    navItems.push({ label: "행사 업로드", path: "/events/new" }),
+    navItems.push({ label: "휴가 관리", path: "/vacation-admin" });
   }
 
   const fmt = (sec) => {
@@ -351,7 +354,7 @@ export default function Layout({
             <div className="flex items-center gap-6 mb-4">
               <div className="flex flex-col items-center">
                 <img
-                  src={profileUrl}
+                  src={profileUrl || undefined}
                   alt="프로필"
                   className="w-24 h-32 rounded-md object-cover shadow-md"
                 />
@@ -393,6 +396,7 @@ export default function Layout({
               </button>
             </div>
           </div>
+
 
           {/* 내 일정 */}
           <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">

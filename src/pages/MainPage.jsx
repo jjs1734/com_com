@@ -49,6 +49,7 @@ const sortOptions = (arr) =>
 function MainPage({ user, events = [], onLogout, onRefresh, showToast }) {
   const navigate = useNavigate();
 
+  // 이벤트 정규화
   const normalizedEvents = useMemo(() => {
     return (events || []).map((e) => {
       const resolvedHostName =
@@ -60,7 +61,7 @@ function MainPage({ user, events = [], onLogout, onRefresh, showToast }) {
         company_name: s(e.company_name),
         product_name: s(e.product_name),
         host: e.host ?? null,
-        host_name: s(resolvedHostName, "-"),   // ✅ fallback도 "-"로 변경
+        host_name: s(resolvedHostName, "-"),
       };
     });
   }, [events]);
@@ -81,6 +82,7 @@ function MainPage({ user, events = [], onLogout, onRefresh, showToast }) {
     []
   );
 
+  // 필터 옵션들
   const optionsDept = useMemo(() => {
     let pool = normalizedEvents;
     if (hostFilter !== "전체") pool = pool.filter((e) => e.host_name === hostFilter);
@@ -102,6 +104,7 @@ function MainPage({ user, events = [], onLogout, onRefresh, showToast }) {
     return sortOptions(pool.map((e) => e.company_name));
   }, [normalizedEvents, deptFilter, hostFilter]);
 
+  // 필터 유효성 체크
   useEffect(() => {
     if (hostFilter !== "전체" && !optionsHost.includes(hostFilter)) setHostFilter("전체");
     if (clientFilter !== "전체" && !optionsClient.includes(clientFilter)) setClientFilter("전체");
@@ -117,6 +120,7 @@ function MainPage({ user, events = [], onLogout, onRefresh, showToast }) {
     if (hostFilter !== "전체" && !optionsHost.includes(hostFilter)) setHostFilter("전체");
   }, [clientFilter, optionsDept, optionsHost]);
 
+  // 필터 적용된 이벤트
   const filteredEvents = useMemo(() => {
     return normalizedEvents.filter(
       (e) =>
@@ -125,6 +129,28 @@ function MainPage({ user, events = [], onLogout, onRefresh, showToast }) {
         (clientFilter === "전체" || e.company_name === clientFilter)
     );
   }, [normalizedEvents, deptFilter, hostFilter, clientFilter]);
+
+// 📌 세팅일 포함 캘린더 이벤트 변환
+const calendarEvents = useMemo(() => {
+  return filteredEvents.flatMap((ev) => {
+    const items = [ev]; // 기존 행사
+
+    if (ev.setup_date && ev.setup_date !== ev.start_date) {
+      items.push({
+        ...ev,
+        id: ev.id,
+        isSetup: true,
+        event_name: `(사전세팅) ${ev.event_name}`,
+        start_date: ev.setup_date,
+        end_date: ev.setup_date,
+      });
+    }
+
+    return items;
+  });
+}, [filteredEvents]);
+
+
 
   const resetFilters = () => {
     setDeptFilter("전체");
@@ -169,9 +195,7 @@ function MainPage({ user, events = [], onLogout, onRefresh, showToast }) {
                 className="px-2 py-1.5 border border-gray-300 rounded text-sm bg-white"
               >
                 {optionsDept.map((v, idx) => (
-                  <option key={`dept-${v}-${idx}`} value={v}>
-                    {v}
-                  </option>
+                  <option key={`dept-${v}-${idx}`} value={v}>{v}</option>
                 ))}
               </select>
 
@@ -181,9 +205,7 @@ function MainPage({ user, events = [], onLogout, onRefresh, showToast }) {
                 className="px-2 py-1.5 border border-gray-300 rounded text-sm bg-white"
               >
                 {optionsHost.map((v, idx) => (
-                  <option key={`host-${v}-${idx}`} value={v}>
-                    {v}
-                  </option>
+                  <option key={`host-${v}-${idx}`} value={v}>{v}</option>
                 ))}
               </select>
 
@@ -193,9 +215,7 @@ function MainPage({ user, events = [], onLogout, onRefresh, showToast }) {
                 className="px-2 py-1.5 border border-gray-300 rounded text-sm bg-white"
               >
                 {optionsClient.map((v, idx) => (
-                  <option key={`client-${v}-${idx}`} value={v}>
-                    {v}
-                  </option>
+                  <option key={`client-${v}-${idx}`} value={v}>{v}</option>
                 ))}
               </select>
 
@@ -210,7 +230,7 @@ function MainPage({ user, events = [], onLogout, onRefresh, showToast }) {
 
           {/* 📅 캘린더 */}
           <EventCalendar
-            events={filteredEvents}
+            events={calendarEvents}
             view={view}
             currentDate={currentDate}
             onPrev={handlePrev}

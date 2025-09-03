@@ -8,7 +8,10 @@ import MainPage from "./pages/MainPage";
 import DirectoryPage from "./pages/DirectoryPage";
 import EventUploadPage from "./pages/EventUploadPage";
 import EventEditPage from "./pages/EventEditPage";
-import EventStatsPage from "./pages/EventStatsPage";   // ✅ 추가
+import EventStatsPage from "./pages/EventStatsPage";
+import MyVacationPage from "./pages/MyVacationPage";
+import VacationAdminPage from "./pages/VacationAdminPage";
+import ExpensePage from "./pages/ExpensePage";
 import Layout from "./components/Layout";
 import Toast from "./components/Toast";
 
@@ -92,7 +95,7 @@ export default function App() {
   const fetchEvents = async () => {
     const { data, error } = await supabase
       .from("events")
-      .select("id, event_name, start_date, end_date, department, company_name, product_name, region, venue, host")
+      .select("id, event_name, start_date, end_date, setup_date, department, company_name, product_name, region, venue, host, event_type, region_id")
       .order("start_date", { ascending: true });
     if (!error) setEvents(data || []);
   };
@@ -271,6 +274,64 @@ export default function App() {
             )
           }
         />
+  <Route
+  path="/my-vacation"
+  element={
+    isLoggedIn ? (
+      <Layout
+        user={user}
+        setUser={setUser}
+        onLogout={handleLogout}
+        sessionRemainingSec={remaining}
+        onExtendSession={extendSession}
+        showToast={showToast}
+      >
+        <MyVacationPage user={user} />
+      </Layout>
+    ) : (
+      <Navigate to="/" replace />
+    )
+  }
+/>
+
+<Route
+  path="/vacation-admin"
+  element={
+    isLoggedIn && user?.is_admin ? (
+      <Layout
+        user={user}
+        setUser={setUser}
+        onLogout={handleLogout}
+        sessionRemainingSec={remaining}
+        onExtendSession={extendSession}
+        showToast={showToast}
+      >
+        <VacationAdminPage user={user} />
+      </Layout>
+    ) : (
+      <Navigate to="/" replace />
+    )
+  }
+/>
+<Route
+  path="/expense"
+  element={
+    isLoggedIn ? (
+      <Layout
+        user={user}
+        setUser={setUser}
+        onLogout={handleLogout}
+        sessionRemainingSec={remaining}
+        onExtendSession={extendSession}
+        showToast={showToast}
+      >
+        <ExpensePage />   {/* ✅ 휴일근무수당 페이지 */}
+      </Layout>
+    ) : (
+      <Navigate to="/" replace />
+    )
+  }
+/>
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
