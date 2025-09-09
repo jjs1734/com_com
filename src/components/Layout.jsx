@@ -15,7 +15,7 @@ export default function Layout({
   sessionRemainingSec,
   onExtendSession,
   showToast,
-  setMiniChatHandler, // ✅ App.jsx에서 전달받음
+  setMiniChatHandler,
 }) {
   const location = useLocation();
   const [onlineUsers, setOnlineUsers] = useState([]);
@@ -32,20 +32,16 @@ export default function Layout({
 
   const [pwModalOpen, setPwModalOpen] = useState(false);
 
-  // 프로필
   const [profileUrl, setProfileUrl] = useState("");
   const fileInputRef = useRef(null);
 
-  // ✅ MiniChat 여러 개
   const [miniChatPartners, setMiniChatPartners] = useState([]);
-
-  // ✅ 메시지 관련
-  const [unreadCounts, setUnreadCounts] = useState({}); // { partnerId: count }
+  const [unreadCounts, setUnreadCounts] = useState({}); // { partnerId: { sender, count } }
 
   // ✅ MiniChat 열기/닫기
   const openMiniChat = (partner) => {
     setMiniChatPartners((prev) => {
-      if (prev.find((p) => p.id === partner.id)) return prev; // 중복 방지
+      if (prev.find((p) => p.id === partner.id)) return prev;
       return [...prev, partner];
     });
   };
@@ -60,7 +56,7 @@ export default function Layout({
     }
   }, [setMiniChatHandler]);
 
-  // ✅ 세션 남은 시간
+  // ✅ 세션 타이머
   const fmt = (sec) => {
     if (sec == null) return "-";
     const s = Math.max(0, sec);
@@ -74,7 +70,7 @@ export default function Layout({
 
   const ASIDE_W = 320;
 
-  // ✅ 프로필 이미지 불러오기
+  // ✅ 프로필 이미지
   useEffect(() => {
     const loadProfile = async () => {
       if (!user?.profile_image) {
@@ -88,7 +84,6 @@ export default function Layout({
     loadProfile();
   }, [user?.profile_image]);
 
-  // ✅ 프로필 업로드
   const handleProfileUpload = async (e) => {
     try {
       const file = e.target.files[0];
@@ -161,7 +156,7 @@ export default function Layout({
     return () => supabase.removeChannel(channel);
   }, []);
 
-  // ✅ 일정 데이터
+  // ✅ 내 일정 데이터
   useEffect(() => {
     if (!user?.id) return;
     const today = new Date().toISOString().split("T")[0];
@@ -249,7 +244,7 @@ export default function Layout({
     }
   };
 
-  // ✅ 이벤트 모달 열기
+  // ✅ 이벤트 모달
   const handleOpenEvent = async (ev) => {
     try {
       const { data, error } = await supabase.from("events").select("*").eq("id", ev.id).single();
@@ -262,13 +257,13 @@ export default function Layout({
     }
   };
 
-  // ✅ 안읽은 메시지 수 불러오기
+  // ✅ 안읽은 메시지 수
   useEffect(() => {
     if (!user?.id) return;
     const fetchUnread = async () => {
       const { data } = await supabase
         .from("direct_messages")
-        .select("id, sender_id, read_at, sender:sender_id(id, name)")
+        .select("id, sender_id, read_at, sender:sender_id(id, name, department, position)")
         .eq("receiver_id", user.id)
         .is("read_at", null);
 
@@ -286,10 +281,7 @@ export default function Layout({
 
     const channel = supabase
       .channel("direct_messages_unread")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "direct_messages" }, () => {
-        fetchUnread();
-      })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "direct_messages" }, () => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "direct_messages" }, () => {
         fetchUnread();
       })
       .subscribe();
@@ -313,7 +305,7 @@ export default function Layout({
     <div className="min-h-screen bg-[#f7f7f7] py-6">
       <div
         className="w-full px-6 grid gap-x-6 gap-y-4"
-        style={{ gridTemplateColumns: `1fr ${ASIDE_W}px`, gridTemplateRows: "auto 1fr auto" }}
+        style={{ gridTemplateColumns: `1fr ${ASIDE_W}px`, gridTemplateRows: "auto 1fr" }}
       >
         {/* 상단 메뉴 */}
         <header className="flex gap-3 items-center" style={{ gridColumn: "1 / 2", gridRow: "1 / 2" }}>
@@ -335,64 +327,60 @@ export default function Layout({
         {/* 사이드 */}
         <aside className="sticky top-4 space-y-4" style={{ gridColumn: "2 / 3", gridRow: "1 / 3" }}>
           {/* 로그인 정보 */}
-<div className="relative rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-  {/* 세션 남은 시간 + 연장 버튼 */}
-  <div className="absolute top-2 right-2 flex items-center gap-2 text-xs">
-    <span className={`font-mono ${danger ? "text-red-600" : "text-gray-600"}`}>
-      {fmt(sessionRemainingSec)}
-    </span>
-    <button
-      onClick={onExtendSession}
-      className="px-2 py-0.5 rounded border border-gray-300 bg-white hover:bg-gray-100"
-    >
-      연장
-    </button>
-  </div>
-
-  <div className="flex items-center gap-6 mb-4">
-    <div className="flex flex-col items-center">
-      <img
-        src={profileUrl || undefined}
-        alt="프로필"
-        className="w-24 h-32 rounded-md object-cover shadow-md"
-      />
-      <button
-        onClick={() => fileInputRef.current.click()}
-        className="mt-2 text-xs text-blue-600 hover:underline"
-      >
-        사진 변경
-      </button>
-      <input
-        type="file"
-        accept="image/*"
-        ref={fileInputRef}
-        className="hidden"
-        onChange={handleProfileUpload}
-      />
-    </div>
-    <div>
-      <p className="text-base font-semibold">{user?.name}</p>
-      <p className="text-sm text-gray-600">직급: {user?.position || "-"}</p>
-      <p className="text-sm text-gray-600">부서: {user?.department || "-"}</p>
-    </div>
-  </div>
-
-  <div className="space-y-2">
-    <button
-      onClick={() => setPwModalOpen(true)}
-      className="w-full rounded bg-gray-100 py-2 text-sm hover:bg-gray-200"
-    >
-      비밀번호 변경
-    </button>
-    <button
-      onClick={onLogout}
-      className="w-full rounded bg-black py-2 text-white hover:bg-gray-800"
-    >
-      로그아웃
-    </button>
-  </div>
-</div>
-
+          <div className="relative rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="absolute top-2 right-2 flex items-center gap-2 text-xs">
+              <span className={`font-mono ${danger ? "text-red-600" : "text-gray-600"}`}>
+                {fmt(sessionRemainingSec)}
+              </span>
+              <button
+                onClick={onExtendSession}
+                className="px-2 py-0.5 rounded border border-gray-300 bg-white hover:bg-gray-100"
+              >
+                연장
+              </button>
+            </div>
+            <div className="flex items-center gap-6 mb-4">
+              <div className="flex flex-col items-center">
+                <img
+                  src={profileUrl || undefined}
+                  alt="프로필"
+                  className="w-24 h-32 rounded-md object-cover shadow-md"
+                />
+                <button
+                  onClick={() => fileInputRef.current.click()}
+                  className="mt-2 text-xs text-blue-600 hover:underline"
+                >
+                  사진 변경
+                </button>
+                <input
+                  type="file"
+                  accept="image/*"
+                  ref={fileInputRef}
+                  className="hidden"
+                  onChange={handleProfileUpload}
+                />
+              </div>
+              <div>
+                <p className="text-base font-semibold">{user?.name}</p>
+                <p className="text-sm text-gray-600">직급: {user?.position || "-"}</p>
+                <p className="text-sm text-gray-600">부서: {user?.department || "-"}</p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <button
+                onClick={() => setPwModalOpen(true)}
+                className="w-full rounded bg-gray-100 py-2 text-sm hover:bg-gray-200"
+              >
+                비밀번호 변경
+              </button>
+              <button
+                onClick={onLogout}
+                className="w-full rounded bg-black py-2 text-white hover:bg-gray-800"
+              >
+                로그아웃
+              </button>
+            </div>
+          </div>
 
           {/* 내 일정 */}
           <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
@@ -512,7 +500,7 @@ export default function Layout({
           </div>
 
           {/* 접속자 */}
-          <div className="rounded-lg border bg-white p-4">
+          <div className="rounded-lg border bg-white p-4 shadow-sm">
             <h2 className="mb-2 text-lg font-medium">접속자</h2>
             <ul className="text-sm max-h-48 overflow-y-auto">
               {onlineUsers.map((u) => (
@@ -523,30 +511,30 @@ export default function Layout({
               ))}
             </ul>
           </div>
-        {/* 안읽은 메시지 */}
-<div className="rounded-lg border bg-white p-4 shadow-sm">
-  <h2 className="mb-2 text-lg font-medium">안읽은 메시지</h2>
-  {Object.values(unreadCounts).length === 0 ? (
-    <p className="text-sm text-gray-500">읽지 않은 메시지 없음</p>
-  ) : (
-    <ul className="text-sm space-y-1 max-h-48 overflow-y-auto">
-      {Object.values(unreadCounts).map(({ sender, count }) => (
-        <li
-          key={sender.id}
-          onClick={() => openMiniChat(sender)}
-          className="flex justify-between items-center cursor-pointer hover:bg-gray-100 p-2 rounded"
-        >
-          <span>{sender.name}</span>
-          <span className="text-xs bg-red-500 text-white rounded-full px-2 py-0.5">
-            {count}
-          </span>
-        </li>
-      ))}
-    </ul>
-  )}
-</div>
-        </aside>
 
+          {/* 안읽은 메시지 */}
+          <div className="rounded-lg border bg-white p-4 shadow-sm">
+            <h2 className="mb-2 text-lg font-medium">안읽은 메시지</h2>
+            {Object.values(unreadCounts).length === 0 ? (
+              <p className="text-sm text-gray-500">읽지 않은 메시지 없음</p>
+            ) : (
+              <ul className="text-sm space-y-1 max-h-48 overflow-y-auto">
+                {Object.values(unreadCounts).map(({ sender, count }) => (
+                  <li
+                    key={sender.id}
+                    onClick={() => openMiniChat(sender)}
+                    className="flex justify-between items-center cursor-pointer hover:bg-gray-100 p-2 rounded"
+                  >
+                    <span>{sender.name} <span className="text-xs text-gray-500">{sender.department} {sender.position}</span></span>
+                    <span className="text-xs bg-red-500 text-white rounded-full px-2 py-0.5">
+                      {count}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </aside>
 
         {/* 본문 */}
         <main className="min-w-0" style={{ gridColumn: "1 / 2", gridRow: "2 / 3" }}>

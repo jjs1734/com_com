@@ -45,17 +45,26 @@ export default function DirectChat({ user, partner }) {
 
   // ✅ 읽음 처리
   useEffect(() => {
-    const markAsRead = async () => {
-      if (!user?.id || !partner?.id) return;
-      await supabase
-        .from("direct_messages")
-        .update({ read_at: new Date().toISOString() })
-        .is("read_at", null)
-        .eq("receiver_id", user.id)
-        .eq("sender_id", partner.id);
-    };
-    markAsRead();
-  }, [user?.id, partner?.id, messages.length]);
+  const markAsRead = async () => {
+    if (!user?.id || !partner?.id) return;
+
+    const { data, error } = await supabase
+  .from("direct_messages")
+  .update({ read_at: new Date().toISOString() })
+  .eq("receiver_id", user.id)
+  .eq("sender_id", partner.id)
+  .is("read_at", null)
+  .select();
+
+if (error) {
+  console.error("읽음 처리 실패:", error);
+} else {
+  console.log("읽음 처리 성공, 업데이트된 행:", data.length);
+}
+  };
+
+  markAsRead();
+}, [user?.id, partner?.id, messages]);
 
   // ✅ 날짜별 그룹화
   const groupByDate = (msgs) => {
