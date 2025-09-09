@@ -14,14 +14,13 @@ const POSITION_ORDER = [
   "대리", "사원"
 ];
 
-export default function DirectoryPage() {
+export default function DirectoryPage({ openMiniChat }) {
   const [users, setUsers] = useState([]);
-  const today = new Date().toISOString().split("T")[0]; // yyyy-mm-dd
-  const nowHour = new Date().getHours(); // 현재 시각 (시 단위)
+  const today = new Date().toISOString().split("T")[0];
+  const nowHour = new Date().getHours();
 
   useEffect(() => {
     const fetchUsers = async () => {
-      // 직원 기본 정보
       const { data: usersData, error: usersError } = await supabase
         .from("users")
         .select("id, name, department, position, profile_image");
@@ -31,14 +30,12 @@ export default function DirectoryPage() {
         return;
       }
 
-      // 오늘 진행 중 행사 (host 기준)
       const { data: hostEvents } = await supabase
         .from("events")
         .select("id, host_id, start_date, end_date")
         .lte("start_date", today)
         .gte("end_date", today);
 
-      // 오늘 지원 중 행사
       const { data: supportEvents } = await supabase
         .from("event_supports")
         .select("user_id, support_date")
@@ -47,7 +44,6 @@ export default function DirectoryPage() {
       const hostIds = hostEvents?.map(e => e.host_id) || [];
       const supportIds = supportEvents?.map(e => e.user_id) || [];
 
-      // 오늘 휴가 정보 (vacations + vacation_types 조인)
       const { data: todayVacations, error: vacError } = await supabase
         .from("vacations")
         .select("user_id, vacation_types(name, code, start_time, end_time)")
@@ -59,43 +55,33 @@ export default function DirectoryPage() {
         console.error("휴가 조회 오류:", vacError);
       }
 
-      // user_id → 휴가 상태 매핑
       const vacationMap = {};
       (todayVacations || []).forEach(v => {
         const vac = v.vacation_types;
         if (!vac) return;
 
         let status = vac.name;
-
-        // 반차일 경우 start_time ~ end_time 시간대만 반영
         if (vac.code === "half_am" || vac.code === "half_pm") {
           const startHour = parseInt(vac.start_time?.split(":")[0], 10);
           const endHour = parseInt(vac.end_time?.split(":")[0], 10);
 
           if (nowHour >= startHour && nowHour < endHour) {
-            status = vac.name; // "오전 반차" / "오후 반차"
+            status = vac.name;
           } else {
             status = "내부";
           }
         }
-
         vacationMap[v.user_id] = status;
       });
 
-      // 정렬 + 상태 부여
       const sorted = [...usersData].map(u => {
         let status = "내부";
-
-        // 1. 휴가 우선
         if (vacationMap[u.id]) {
           status = vacationMap[u.id];
         }
-
-        // 2. 행사 참여 (외근) → 휴가가 없을 때만 반영
         if (status === "내부" && (hostIds.includes(u.id) || supportIds.includes(u.id))) {
           status = "외근 중";
         }
-
         return { ...u, status };
       }).sort((a, b) => {
         const deptA = DEPARTMENT_ORDER.indexOf(a.department);
@@ -113,7 +99,6 @@ export default function DirectoryPage() {
     fetchUsers();
   }, [today, nowHour]);
 
-  // 부서별로 그룹화
   const groupedByDept = users.reduce((acc, user) => {
     const dept = user.department || "기타";
     if (!acc[dept]) acc[dept] = [];
@@ -121,7 +106,6 @@ export default function DirectoryPage() {
     return acc;
   }, {});
 
-  // ✅ 프로필 이미지 URL 가져오기
   const getProfileUrl = (path) => {
     if (!path) {
       return supabase.storage.from("profile-images").getPublicUrl("default-avatar.png").data.publicUrl;
@@ -129,7 +113,6 @@ export default function DirectoryPage() {
     return supabase.storage.from("profile-images").getPublicUrl(path).data.publicUrl;
   };
 
-  // 상태별 색상
   const getStatusColor = (status) => {
     switch (status) {
       case "외근 중": return "bg-yellow-200 text-yellow-800";
@@ -162,7 +145,8 @@ export default function DirectoryPage() {
                 {members.map((user) => (
                   <div
                     key={user.id}
-                    className={`p-4 rounded-lg shadow-sm flex items-center gap-4
+                    onClick={() => openMiniChat(user)}   // ✅ 클릭 시 MiniChat 열기
+                    className={`p-4 rounded-lg shadow-sm flex items-center gap-4 cursor-pointer hover:bg-gray-50 transition
                       ${user.status !== "내부"
                         ? "border-2 " + getStatusColor(user.status).split(" ")[0]
                         : "bg-white border border-gray-200"}`}

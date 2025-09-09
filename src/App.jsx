@@ -30,6 +30,14 @@ export default function App() {
     setTimeout(() => setToast(null), delay);
   };
 
+  // ✅ MiniChat 핸들러 (Layout에서 등록 → App에서 전달)
+  const [miniChatHandler, setMiniChatHandler] = useState(null);
+  const openMiniChat = (partner) => {
+    if (miniChatHandler) {
+      miniChatHandler(partner);
+    }
+  };
+
   // 최초 복원
   useEffect(() => {
     const savedUser = localStorage.getItem("app_user");
@@ -106,7 +114,6 @@ export default function App() {
   // 로그인
   const handleLogin = async (u) => {
     try {
-      // ✅ DB에서 최신 사용자 정보 다시 불러오기 (profile_image 포함)
       const { data: fullUser, error } = await supabase
         .from("users")
         .select("*")
@@ -124,7 +131,6 @@ export default function App() {
       localStorage.setItem("app_user", JSON.stringify(fullUser));
       localStorage.setItem("app_session_exp", String(newExp));
 
-      // ✅ online_users 등록/갱신
       await supabase.from("online_users").upsert({
         user_id: fullUser.id,
         name: fullUser.name,
@@ -141,7 +147,6 @@ export default function App() {
   const handleLogout = async () => {
     if (user) {
       try {
-        // ✅ online_users에서 제거
         await supabase.from("online_users").delete().eq("user_id", user.id);
       } catch (err) {
         console.error("online_users delete 실패:", err);
@@ -160,7 +165,6 @@ export default function App() {
     setExp(newExp);
     localStorage.setItem("app_session_exp", String(newExp));
 
-    // ✅ 세션 연장 시 last_seen 갱신
     if (user) {
       supabase.from("online_users").upsert({
         user_id: user.id,
@@ -185,11 +189,12 @@ export default function App() {
             isLoggedIn ? (
               <Layout
                 user={user}
-                setUser={setUser}  // ✅ Layout에도 전달
+                setUser={setUser}
                 onLogout={handleLogout}
                 sessionRemainingSec={remaining}
                 onExtendSession={extendSession}
                 showToast={showToast}
+                setMiniChatHandler={setMiniChatHandler}   // ✅ MiniChat 핸들러 등록
               >
                 <MainPage user={user} events={events} onRefresh={fetchEvents} showToast={showToast} />
               </Layout>
@@ -209,8 +214,9 @@ export default function App() {
                 sessionRemainingSec={remaining}
                 onExtendSession={extendSession}
                 showToast={showToast}
+                setMiniChatHandler={setMiniChatHandler}   // ✅ MiniChat 핸들러 등록
               >
-                <DirectoryPage />
+                <DirectoryPage user={user} openMiniChat={openMiniChat} /> {/* ✅ 직원 명부에서도 MiniChat */}
               </Layout>
             ) : (
               <Navigate to="/" replace />
@@ -228,6 +234,7 @@ export default function App() {
                 sessionRemainingSec={remaining}
                 onExtendSession={extendSession}
                 showToast={showToast}
+                setMiniChatHandler={setMiniChatHandler}
               >
                 <EventEditPage user={user} onUpdated={fetchEvents} showToast={showToast} />
               </Layout>
@@ -247,6 +254,7 @@ export default function App() {
                 sessionRemainingSec={remaining}
                 onExtendSession={extendSession}
                 showToast={showToast}
+                setMiniChatHandler={setMiniChatHandler}
               >
                 <EventUploadPage user={user} onCreated={fetchEvents} showToast={showToast} />
               </Layout>
@@ -266,6 +274,7 @@ export default function App() {
                 sessionRemainingSec={remaining}
                 onExtendSession={extendSession}
                 showToast={showToast}
+                setMiniChatHandler={setMiniChatHandler}
               >
                 <EventStatsPage />
               </Layout>
@@ -274,66 +283,66 @@ export default function App() {
             )
           }
         />
-  <Route
-  path="/my-vacation"
-  element={
-    isLoggedIn ? (
-      <Layout
-        user={user}
-        setUser={setUser}
-        onLogout={handleLogout}
-        sessionRemainingSec={remaining}
-        onExtendSession={extendSession}
-        showToast={showToast}
-      >
-        <MyVacationPage user={user} />
-      </Layout>
-    ) : (
-      <Navigate to="/" replace />
-    )
-  }
-/>
-
-<Route
-  path="/vacation-admin"
-  element={
-    isLoggedIn && user?.is_admin ? (
-      <Layout
-        user={user}
-        setUser={setUser}
-        onLogout={handleLogout}
-        sessionRemainingSec={remaining}
-        onExtendSession={extendSession}
-        showToast={showToast}
-      >
-        <VacationAdminPage user={user} />
-      </Layout>
-    ) : (
-      <Navigate to="/" replace />
-    )
-  }
-/>
-<Route
-  path="/expense"
-  element={
-    isLoggedIn ? (
-      <Layout
-        user={user}
-        setUser={setUser}
-        onLogout={handleLogout}
-        sessionRemainingSec={remaining}
-        onExtendSession={extendSession}
-        showToast={showToast}
-      >
-        <ExpensePage />   {/* ✅ 휴일근무수당 페이지 */}
-      </Layout>
-    ) : (
-      <Navigate to="/" replace />
-    )
-  }
-/>
-
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route
+          path="/my-vacation"
+          element={
+            isLoggedIn ? (
+              <Layout
+                user={user}
+                setUser={setUser}
+                onLogout={handleLogout}
+                sessionRemainingSec={remaining}
+                onExtendSession={extendSession}
+                showToast={showToast}
+                setMiniChatHandler={setMiniChatHandler}
+              >
+                <MyVacationPage user={user} />
+              </Layout>
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+        <Route
+          path="/vacation-admin"
+          element={
+            isLoggedIn && user?.is_admin ? (
+              <Layout
+                user={user}
+                setUser={setUser}
+                onLogout={handleLogout}
+                sessionRemainingSec={remaining}
+                onExtendSession={extendSession}
+                showToast={showToast}
+                setMiniChatHandler={setMiniChatHandler}
+              >
+                <VacationAdminPage user={user} />
+              </Layout>
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+        <Route
+          path="/expense"
+          element={
+            isLoggedIn ? (
+              <Layout
+                user={user}
+                setUser={setUser}
+                onLogout={handleLogout}
+                sessionRemainingSec={remaining}
+                onExtendSession={extendSession}
+                showToast={showToast}
+                setMiniChatHandler={setMiniChatHandler}
+              >
+                <ExpensePage />
+              </Layout>
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
       </Routes>
 
       {/* ✅ 전역 토스트 */}
